@@ -1,0 +1,31 @@
+{
+  "name": "lily-backoffice",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lily — your 24/7 back-office. Telegram-to-invoice cascade system for the thermal-paper group (Prim Paper -> 3C Industries -> Tien Ngai Machinery).",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test:cascade": "tsx scripts/test-cascade.ts",
+    "render:samples": "tsx scripts/render-samples.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "framer-motion": "^11.18.2",
+    "next": "15.1.6",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

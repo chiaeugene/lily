@@ -1,0 +1,14 @@
+import { NextRequest, NextResponse } from "next/server";
+import { repo } from "@/lib/repo";
+import type { CompanyKey } from "@/lib/types";
+
+// PATCH company details (name, reg, tin, address, tel, email, banks).
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ key: string }> }) {
+  const { key } = await params;
+  if (!["prim", "3c", "tien_ngai"].includes(key)) {
+    return NextResponse.json({ error: "unknown company" }, { status: 404 });
+  }
+  const body = await req.json().catch(() => ({}));
+  repo.updateCompany(key as CompanyKey, body);
+  return NextResponse.json({ ok: true, company: repo.getCompany(key as CompanyKey) });
+}

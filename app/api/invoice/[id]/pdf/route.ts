@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const pdfBuffer = await renderPdf(html);
 
   if (pdfBuffer) {
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         "content-type": "application/pdf",
         "content-disposition": `inline; filename="${found.invoice.invoiceNo}.pdf"`,

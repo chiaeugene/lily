@@ -18,7 +18,7 @@ function fauxQr(): string {
 }
 
 /** Full standalone A4 invoice HTML for one company skin. */
-export function invoiceHtml(inv: Invoice): string {
+export function invoiceHtml(inv: Invoice, opts: { voided?: boolean } = {}): string {
   const c = COMPANIES[inv.company];
 
   const header = `
@@ -142,6 +142,7 @@ export function invoiceHtml(inv: Invoice): string {
   .sig-line { border-top:1px solid #000; margin:26px 12px 4px; }
 </style></head>
 <body>
+  ${opts.voided ? `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:9999;"><div style="font-family:Arial,sans-serif;font-size:120px;font-weight:bold;color:rgba(220,38,38,0.18);border:8px solid rgba(220,38,38,0.18);padding:8px 40px;border-radius:12px;transform:rotate(-28deg);letter-spacing:8px;">VOID</div></div>` : ""}
   <div class="sheet">
     ${header}
     <hr class="rule"/>

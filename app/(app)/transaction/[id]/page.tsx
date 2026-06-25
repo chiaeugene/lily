@@ -3,12 +3,15 @@ import { notFound } from "next/navigation";
 import { repo } from "@/lib/repo";
 import { PageHeader, CompanyBadge } from "@/components/ui";
 import { IconDownload } from "@/components/icons";
+import VoidButton from "@/components/VoidButton";
 import { fmt2 } from "@/lib/money";
 
 export default async function TransactionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const tx = await repo.getTransaction(id);
   if (!tx) notFound();
+
+  const voided = tx.status === "void";
 
   return (
     <>
@@ -17,16 +20,27 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
         sub={`${tx.customerName} · ${tx.date} · one order → three linked invoices`}
       />
       <div className="p-4 md:p-8 space-y-6">
-        <div className="bg-white rounded-xl shadow-card p-5 flex flex-wrap gap-8 text-sm">
+        {voided && (
+          <div className="rounded-xl border border-loss/30 bg-loss-soft px-5 py-3 flex items-center gap-3">
+            <span className="inline-flex items-center rounded-md bg-loss text-white text-[11px] font-bold px-2 py-0.5">VOID</span>
+            <div className="text-[13px] text-loss">
+              This transaction is voided{tx.voidReason ? ` — ${tx.voidReason}` : ""}. Its invoices carry a VOID
+              watermark and are excluded from totals.
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl shadow-card p-5 flex flex-wrap items-center gap-8 text-sm">
           <div>
             <div className="text-xs text-slate-400">Customer pays (3C)</div>
-            <div className="text-lg font-bold tnum">RM {fmt2(tx.grandTotalSell)}</div>
+            <div className={`text-lg font-bold tnum ${voided ? "line-through text-muted" : ""}`}>RM {fmt2(tx.grandTotalSell)}</div>
           </div>
           <div>
             <div className="text-xs text-slate-400">Group margin captured</div>
-            <div className="text-lg font-bold tnum text-profit">RM {fmt2(tx.marginCaptured)}</div>
+            <div className={`text-lg font-bold tnum ${voided ? "line-through text-muted" : "text-profit"}`}>RM {fmt2(tx.marginCaptured)}</div>
           </div>
-          <div className="ml-auto self-center">
+          <div className="ml-auto self-center flex items-center gap-2">
+            {!voided && <VoidButton transactionId={tx.id} />}
             <Link
               href={`/api/transaction/${tx.id}/pdf`}
               target="_blank"

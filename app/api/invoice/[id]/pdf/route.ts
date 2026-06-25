@@ -10,7 +10,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const found = await repo.getInvoice(id);
   if (!found) return NextResponse.json({ error: "invoice not found" }, { status: 404 });
 
-  const html = invoiceHtml(found.invoice);
+  const html = invoiceHtml(found.invoice, { voided: found.transaction.status === "void" });
   const pdfBuffer = await renderPdf(html);
 
   if (pdfBuffer) {

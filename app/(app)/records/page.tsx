@@ -1,6 +1,7 @@
 import { repo } from "@/lib/repo";
 import { PageHeader, Card } from "@/components/ui";
 import TransactionsList from "@/components/TransactionsList";
+import ExportBar from "@/components/ExportBar";
 
 export default async function RecordsPage() {
   const [txs, audit] = await Promise.all([
@@ -12,6 +13,10 @@ export default async function RecordsPage() {
     <>
       <PageHeader title="Records" sub="Full transaction archive and audit log" />
       <div className="p-4 md:p-8 space-y-6 max-w-[1200px] w-full">
+        <Card title="Export">
+          <ExportBar />
+        </Card>
+
         <Card title={`All transactions · ${txs.length}`}>
           <TransactionsList transactions={txs} />
         </Card>

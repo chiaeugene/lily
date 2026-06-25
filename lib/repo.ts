@@ -80,6 +80,9 @@ function rowToTransaction(r: any, invoices: Invoice[]): Transaction {
     grandTotalSell: Number(r.grand_total_sell),
     marginCaptured: Number(r.margin_captured),
     createdAt: r.created_at,
+    status: (r.status as "active" | "void") ?? "active",
+    voidReason: r.void_reason ?? undefined,
+    voidedAt: r.voided_at ?? undefined,
   };
 }
 
@@ -454,6 +457,86 @@ export const repo = {
     return { invoice, transaction: tx };
   },
 
+  async voidTransaction(id: string, reason: string, actor = "admin"): Promise<void> {
+    const r = (reason || "").trim() || "No reason given";
+    if (isDemoMode) {
+      const t = store.transactions.find((x) => x.id === id);
+      if (!t) return;
+      t.status = "void";
+      t.voidReason = r;
+      t.voidedAt = new Date().toISOString();
+      memLog(actor, "transaction.void", `${id}: ${r}`);
+      return;
+    }
+    await getSupabaseAdmin()
+      .from("transactions")
+      .update({ status: "void", void_reason: r, voided_at: new Date().toISOString() })
+      .eq("id", id);
+    await dbLog(actor, "transaction.void", `${id}: ${r}`);
+  },
+
+  // ── customer master ─────────────────────────────────────────────────────────
+  async upsertCustomer(c: Customer): Promise<Customer> {
+    const id = c.id || `cus-${Date.now().toString(36)}`;
+    const rec = { ...c, id };
+    if (isDemoMode) {
+      const i = store.customers.findIndex((x) => x.id === id);
+      if (i >= 0) store.customers[i] = rec;
+      else store.customers.push(rec);
+    } else {
+      await getSupabaseAdmin().from("customers").upsert({
+        id: rec.id,
+        name: rec.name,
+        address_lines: rec.addressLines,
+        tel: rec.tel ?? null,
+        fax: rec.fax ?? null,
+      });
+    }
+    await log("admin", "customer.upsert", `${rec.name}`);
+    return rec;
+  },
+
+  async deleteCustomer(id: string): Promise<void> {
+    if (isDemoMode) {
+      store.customers = store.customers.filter((x) => x.id !== id);
+    } else {
+      await getSupabaseAdmin().from("customers").delete().eq("id", id);
+    }
+    await log("admin", "customer.delete", id);
+  },
+
+  // ── product master ──────────────────────────────────────────────────────────
+  async upsertProduct(p: Product): Promise<Product> {
+    const id = p.id || `prd-${Date.now().toString(36)}`;
+    const rec = { ...p, id };
+    if (isDemoMode) {
+      const i = store.products.findIndex((x) => x.id === id);
+      if (i >= 0) store.products[i] = rec;
+      else store.products.push(rec);
+    } else {
+      await getSupabaseAdmin().from("products").upsert({
+        id: rec.id,
+        name: rec.name,
+        spec_lines: rec.specLines,
+        uom: rec.uom,
+      });
+    }
+    await log("admin", "product.upsert", `${rec.name}`);
+    return rec;
+  },
+
+  async deleteProduct(id: string): Promise<void> {
+    if (isDemoMode) {
+      store.products = store.products.filter((x) => x.id !== id);
+      store.marginRules = store.marginRules.filter((r) => r.productId !== id);
+    } else {
+      const db = getSupabaseAdmin();
+      await db.from("margin_rules").delete().eq("product_id", id);
+      await db.from("products").delete().eq("id", id);
+    }
+    await log("admin", "product.delete", id);
+  },
+
   // ── search & analytics ────────────────────────────────────────────────────
   async search(q: string): Promise<Transaction[]> {
     if (!q.trim()) return [];
@@ -502,7 +585,7 @@ export const repo = {
     marginCaptured: number;
   }> {
     if (isDemoMode) {
-      const txs = store.transactions;
+      const txs = store.transactions.filter((t) => t.status !== "void");
       return {
         pending: store.orders.filter((o) => o.status === "pending").length,
         transactions: txs.length,
@@ -511,11 +594,13 @@ export const repo = {
       };
     }
     const db = getSupabaseAdmin();
+    // select("*") tolerates the status column being absent before migration 001
+    // runs; we filter void in JS so a missing column never errors the dashboard.
     const [{ count: pendingCount }, { data: agg }] = await Promise.all([
       db.from("orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
-      db.from("transactions").select("grand_total_sell,margin_captured"),
+      db.from("transactions").select("*"),
     ]);
-    const txs = agg ?? [];
+    const txs = (agg ?? []).filter((t: { status?: string }) => (t.status ?? "active") !== "void");
     return {
       pending: pendingCount ?? 0,
       transactions: txs.length,

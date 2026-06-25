@@ -123,6 +123,8 @@ export interface Invoice {
   amountInWords: string;
 }
 
+export type TransactionStatus = "active" | "void";
+
 /** One order -> one Transaction holding the three cascade invoices. */
 export interface Transaction {
   id: string;
@@ -133,6 +135,9 @@ export interface Transaction {
   grandTotalSell: number; // tien_ngai -> customer total
   marginCaptured: number; // sell total - prim cost total (group margin)
   createdAt: string;
+  status?: TransactionStatus; // undefined treated as "active"
+  voidReason?: string;
+  voidedAt?: string;
 }
 
 export interface AuditEntry {

@@ -263,16 +263,18 @@ export const repo = {
 
   async patchOrder(
     id: string,
-    updates: { customerName?: string; lines?: OrderLine[] },
+    updates: { customerName?: string; date?: string; lines?: OrderLine[] },
   ): Promise<void> {
     if (isDemoMode) {
       const o = store.orders.find((x) => x.id === id);
       if (!o) return;
       if (updates.customerName) o.customerName = updates.customerName;
+      if (updates.date) o.date = updates.date;
       if (updates.lines) o.lines = updates.lines;
     } else {
       const patch: Record<string, unknown> = {};
       if (updates.customerName) patch.customer_name = updates.customerName;
+      if (updates.date) patch.date = updates.date;
       if (updates.lines) patch.lines = updates.lines;
       if (Object.keys(patch).length) {
         await getSupabaseAdmin().from("orders").update(patch).eq("id", id);

@@ -8,10 +8,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!order) return NextResponse.json({ error: "order not found" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
-  const updates: { customerName?: string; lines?: typeof order.lines } = {};
+  const updates: { customerName?: string; date?: string; lines?: typeof order.lines } = {};
 
   if (typeof body.customerName === "string" && body.customerName.trim()) {
     updates.customerName = body.customerName.trim();
+  }
+  // accept an edited invoice date in dd/MM/yyyy form
+  if (typeof body.date === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(body.date.trim())) {
+    updates.date = body.date.trim();
   }
   if (Array.isArray(body.lines)) {
     updates.lines = order.lines.map((l, i) => {

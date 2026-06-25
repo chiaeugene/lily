@@ -51,22 +51,46 @@ export default function PendingList({ orders }: { orders: Order[] }) {
   );
 }
 
+// dd/MM/yyyy  <->  yyyy-MM-dd (for <input type="date">)
+function toInputDate(d: string): string {
+  const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+}
+function fromInputDate(d: string): string {
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+}
+
 function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"" | "verify" | "reject">("");
   const [customerName, setCustomerName] = useState(order.customerName);
+  const [date, setDate] = useState(order.date);
   const [lines, setLines] = useState(order.lines);
+  const [ackIssues, setAckIssues] = useState(false);
 
   function patch(i: number, p: Partial<(typeof lines)[number]>) {
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...p } : l)));
   }
 
+  // ── soft guard: surface anything that would make a junk invoice ──
+  const issues: string[] = [];
+  if (!customerName.trim() || /unknown/i.test(customerName)) issues.push("Customer name looks unrecognised");
+  lines.forEach((l, i) => {
+    const tag = lines.length > 1 ? ` (line ${i + 1})` : "";
+    if (!l.productName.trim() || /unknown/i.test(l.productName)) issues.push(`Product not in catalog${tag}`);
+    if (!(l.qty > 0)) issues.push(`Quantity must be greater than 0${tag}`);
+    if (!(l.sellUnitPrice > 0)) issues.push(`Sell price must be greater than 0${tag}`);
+  });
+  const blocked = issues.length > 0 && !ackIssues;
+
   async function verify() {
+    if (blocked) return;
     setBusy("verify");
     const res = await fetch(`/api/orders/${order.id}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ customerName, lines }),
+      body: JSON.stringify({ customerName, date, lines }),
     });
     const data = await res.json();
     if (data.transactionId) {
@@ -109,13 +133,23 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
             <div className="rounded-lg bg-warn-soft text-warn text-[13px] px-3 py-2">{order.parseNotes}</div>
           )}
 
-          <Field label="Customer">
-            <input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:border-primary"
-            />
-          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+            <Field label="Customer">
+              <input
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:border-primary"
+              />
+            </Field>
+            <Field label="Invoice date">
+              <input
+                type="date"
+                value={toInputDate(date)}
+                onChange={(e) => setDate(fromInputDate(e.target.value) || date)}
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm tnum focus:border-primary"
+              />
+            </Field>
+          </div>
 
           <div className="space-y-4">
             {lines.map((l, i) => (
@@ -154,11 +188,31 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
           </div>
         </div>
 
+        {issues.length > 0 && (
+          <div className="mx-5 mb-1 rounded-lg border border-warn/40 bg-warn-soft px-3 py-2.5">
+            <div className="text-[12px] font-semibold text-warn mb-1">Please double-check before generating:</div>
+            <ul className="text-[12px] text-warn list-disc pl-4 space-y-0.5">
+              {issues.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ul>
+            <label className="mt-2 flex items-center gap-2 text-[12px] text-ink cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ackIssues}
+                onChange={(e) => setAckIssues(e.target.checked)}
+                className="rounded border-line"
+              />
+              I&apos;ve checked these — generate anyway
+            </label>
+          </div>
+        )}
+
         <div className="border-t border-line p-4 flex gap-2">
           <button
             onClick={verify}
-            disabled={!!busy}
-            className="flex-1 inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-lg px-4 py-2.5 disabled:opacity-50"
+            disabled={!!busy || blocked}
+            className="flex-1 inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-lg px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <IconCheck size={17} />
             {busy === "verify" ? "Generating…" : "Verify & Generate 3 Invoices"}

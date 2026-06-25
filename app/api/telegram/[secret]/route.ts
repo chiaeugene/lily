@@ -38,12 +38,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
   const text: string = msg?.text ?? "";
   if (!chatId || !text) return NextResponse.json({ ok: true });
 
-  // allow-list check
+  // allow-list check — FAIL CLOSED. If no allow-list is configured the bot
+  // accepts nobody, so strangers who discover the bot can't inject orders.
   const allowed = (process.env.TELEGRAM_ALLOWED_USER_IDS || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (allowed.length && !allowed.includes(userId)) {
+
+  if (!allowed.length) {
+    // Not configured yet. Reply with the sender's own ID so the admin can paste
+    // it straight into TELEGRAM_ALLOWED_USER_IDS (solves "how do I find my ID").
+    await reply(
+      chatId,
+      `⚠ This bot isn't authorised for anyone yet.\n\nYour Telegram ID is:\n${userId}\n\nAsk the administrator to add it to TELEGRAM_ALLOWED_USER_IDS on the server, then try again.`,
+    );
+    return NextResponse.json({ ok: true });
+  }
+  if (!allowed.includes(userId)) {
     await reply(chatId, "Sorry, you're not authorised to submit orders.");
     return NextResponse.json({ ok: true });
   }
@@ -71,21 +82,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
     .map((l) => `• ${l.qty} ${l.uom} ${l.productName} @ RM${fmt2(l.sellUnitPrice)}`)
     .join("\n");
 
+  // Deep-link straight to the dashboard so verifying is one tap away.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const dashUrl = appUrl ? `${appUrl}/dashboard` : undefined;
+
   await reply(
     chatId,
     `✅ Order queued (confidence ${conf}%)\n\nCustomer: ${order.customerName}\n${lines}\nTerms: ${order.terms}${
       order.parseNotes ? `\n\n⚠ ${order.parseNotes}` : ""
-    }\n\nOpen the dashboard to verify & generate the 3 invoices.`,
+    }${dashUrl ? "" : "\n\nOpen the dashboard to verify & generate the 3 invoices."}`,
+    dashUrl ? { text: "✓ Verify & generate invoices", url: dashUrl } : undefined,
   );
   return NextResponse.json({ ok: true });
 }
 
-async function reply(chatId: number, text: string) {
+/** Send a Telegram message, optionally with a single inline-keyboard button. */
+async function reply(chatId: number, text: string, button?: { text: string; url: string }) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return; // demo: no token, skip
+  const body: Record<string, unknown> = { chat_id: chatId, text };
+  if (button) {
+    body.reply_markup = { inline_keyboard: [[{ text: button.text, url: button.url }]] };
+  }
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify(body),
   }).catch(() => {});
 }

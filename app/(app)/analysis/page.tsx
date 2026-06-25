@@ -33,7 +33,7 @@ export default async function AnalysisPage() {
   return (
     <>
       <PageHeader title="Sales Analysis" sub="Volume, revenue and the margin earned at each tier" />
-      <div className="p-8 space-y-6">
+      <div className="p-4 md:p-8 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="Transactions" value={String(txs.length)} tone="primary" />
           <KpiCard label="Total sales" value={totalSell} prefix="RM " />

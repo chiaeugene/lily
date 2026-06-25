@@ -16,7 +16,7 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
         title={`Transaction ${tx.id}`}
         sub={`${tx.customerName} · ${tx.date} · one order → three linked invoices`}
       />
-      <div className="p-8 space-y-6">
+      <div className="p-4 md:p-8 space-y-6">
         <div className="bg-white rounded-xl shadow-card p-5 flex flex-wrap gap-8 text-sm">
           <div>
             <div className="text-xs text-slate-400">Customer pays (3C)</div>

@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   return (
     <>
       <PageHeader title="Settings" sub="Company details and the margins that drive the invoice cascade" />
-      <div className="p-8 max-w-[1200px] w-full">
+      <div className="p-4 md:p-8 max-w-[1200px] w-full">
         <SettingsClient companies={companies} products={products} rules={rules} />
       </div>
     </>

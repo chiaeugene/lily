@@ -3,7 +3,7 @@ import { fmt2 } from "@/lib/money";
 export function PageHeader({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) {
   return (
     <header className="sticky top-0 z-20 bg-surface/85 backdrop-blur border-b border-line">
-      <div className="px-8 h-16 flex items-center justify-between">
+      <div className="pl-[72px] pr-6 md:px-8 h-16 flex items-center justify-between">
         <div>
           <h1 className="text-[17px] font-semibold text-ink leading-tight">{title}</h1>
           {sub && <p className="text-[13px] text-muted">{sub}</p>}

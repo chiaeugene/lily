@@ -15,7 +15,7 @@ export default async function Dashboard() {
   return (
     <>
       <PageHeader title="Dashboard" sub="Tien Ngai Machinery → Prim Paper → 3C Industries → customer" />
-      <div className="p-8 space-y-6 max-w-[1200px] w-full">
+      <div className="p-4 md:p-8 space-y-5 max-w-[1200px] w-full">
         {/* 1 col (mobile) · 2 cols (tablet) · 4 cols (desktop) — always balanced */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <KpiCard label="Pending" value={String(k.pending)} tone={k.pending ? "loss" : "ink"} hint="awaiting verification" />

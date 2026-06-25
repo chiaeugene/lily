@@ -1,9 +1,21 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AuroraBackground } from "@/components/ui/aurora-background";
 import { LilyMark } from "@/components/Logo";
+
+const GREETINGS = [
+  "Good morning.",
+  "Welcome back.",
+  "Ready to roll.",
+  "Hey there.",
+  "Let's get to work.",
+  "Back at it.",
+  "Hello, boss.",
+  "Orders are waiting.",
+  "Your desk is clear.",
+  "Morning.",
+];
 
 const LEN = 6;
 
@@ -12,7 +24,20 @@ export default function LoginPage() {
   const [digits, setDigits] = useState<string[]>(Array(LEN).fill(""));
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [greetIdx, setGreetIdx] = useState(0);
+  const [visible, setVisible] = useState(true);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setGreetIdx((i) => (i + 1) % GREETINGS.length);
+        setVisible(true);
+      }, 350);
+    }, 3500);
+    return () => clearInterval(t);
+  }, []);
 
   async function submit(code: string) {
     setBusy(true);
@@ -58,50 +83,56 @@ export default function LoginPage() {
   }
 
   return (
-    <AuroraBackground className="px-4">
-      <div className="mx-auto w-full max-w-sm">
-        <div className="rounded-2xl border border-white/70 bg-white/70 backdrop-blur-xl shadow-[0_20px_60px_rgba(79,70,229,0.15)] p-8 text-center">
-          <div className="flex flex-col items-center gap-3">
-            <LilyMark size={48} />
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-ink">Lily</h1>
-              <p className="text-[13px] text-muted">your 24/7 back-office</p>
-            </div>
-          </div>
+    <div className="min-h-dvh bg-sidebar flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Aurora warm glow */}
+      <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div className="aurora" />
+      </div>
 
-          <p className="mt-7 text-sm text-muted">Enter passcode to continue</p>
+      <div className="relative z-10 flex flex-col items-center text-center select-none">
+        {/* Logo mark */}
+        <LilyMark size={44} />
 
-          <div className={`mt-4 flex justify-center gap-2 ${error ? "animate-[shake_0.3s]" : ""}`}>
-            {digits.map((d, i) => (
-              <input
-                key={i}
-                ref={(el) => {
-                  refs.current[i] = el;
-                }}
-                value={d}
-                onChange={(e) => setAt(i, e.target.value)}
-                onKeyDown={(e) => onKey(i, e)}
-                inputMode="numeric"
-                autoFocus={i === 0}
-                disabled={busy}
-                aria-label={`Passcode digit ${i + 1}`}
-                maxLength={1}
-                className={`w-11 h-12 rounded-xl bg-white text-center text-xl font-semibold text-ink outline-none border transition
-                  ${error ? "border-loss" : "border-line focus:border-primary focus:ring-2 focus:ring-primary/20"}`}
-              />
-            ))}
-          </div>
-
-          <div className="h-5 mt-3">
-            {error && <p className="text-[13px] text-loss">Incorrect passcode — try again</p>}
-            {busy && !error && <p className="text-[13px] text-muted">Unlocking…</p>}
-          </div>
+        {/* Cycling greeting */}
+        <div className="mt-8 h-8 flex items-center justify-center">
+          <p
+            className="text-xl font-light tracking-wide text-white/80 transition-opacity duration-300"
+            style={{ opacity: visible ? 1 : 0 }}
+          >
+            {GREETINGS[greetIdx]}
+          </p>
         </div>
 
-        <p className="mt-5 text-center text-[12px] text-muted/80">
-          Tien Ngai Machinery · Prim Paper · 3C Industries
-        </p>
+        {/* 6-digit passcode */}
+        <div className={`mt-10 flex gap-3 ${error ? "animate-[shake_0.3s]" : ""}`}>
+          {digits.map((d, i) => (
+            <input
+              key={i}
+              ref={(el) => { refs.current[i] = el; }}
+              value={d}
+              onChange={(e) => setAt(i, e.target.value)}
+              onKeyDown={(e) => onKey(i, e)}
+              inputMode="numeric"
+              autoFocus={i === 0}
+              disabled={busy}
+              aria-label={`Passcode digit ${i + 1}`}
+              maxLength={1}
+              className={`w-11 h-14 rounded-xl text-center text-xl font-semibold outline-none border transition-all
+                bg-white/[0.08] text-white caret-transparent
+                ${error
+                  ? "border-red-400/50 bg-red-400/[0.06]"
+                  : "border-white/[0.15] focus:border-white/50 focus:bg-white/[0.12]"
+                }`}
+            />
+          ))}
+        </div>
+
+        {/* Status line */}
+        <div className="mt-4 h-5">
+          {error && <p className="text-sm text-red-300/90">Incorrect — try again</p>}
+          {busy && !error && <p className="text-sm text-white/35">Verifying…</p>}
+        </div>
       </div>
-    </AuroraBackground>
+    </div>
   );
 }

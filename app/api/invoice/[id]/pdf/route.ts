@@ -1,16 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { repo } from "@/lib/repo";
 import { invoiceHtml } from "@/lib/invoiceHtml";
-import { withAutoPrint } from "@/lib/pdf";
+import { renderPdf, withAutoPrint } from "@/lib/pdf";
 
-// "Save PDF": returns the invoice HTML that auto-opens the browser print dialog
-// (Save as PDF). Zero-dependency and works everywhere. A true server-rendered
-// PDF via headless Chromium can be enabled on Render later (see lib/pdf.ts).
+// Returns a real PDF (application/pdf) when Chromium is available (Render/Linux),
+// or falls back to HTML+autoprint on Windows dev.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const found = await repo.getInvoice(id);
   if (!found) return NextResponse.json({ error: "invoice not found" }, { status: 404 });
-  return new NextResponse(withAutoPrint(invoiceHtml(found.invoice)), {
+
+  const html = invoiceHtml(found.invoice);
+  const pdfBuffer = await renderPdf(html);
+
+  if (pdfBuffer) {
+    return new NextResponse(pdfBuffer, {
+      headers: {
+        "content-type": "application/pdf",
+        "content-disposition": `inline; filename="${found.invoice.invoiceNo}.pdf"`,
+      },
+    });
+  }
+
+  // Fallback: HTML with browser print dialog (dev / no Chromium)
+  return new NextResponse(withAutoPrint(html), {
     headers: { "content-type": "text/html; charset=utf-8" },
   });
 }

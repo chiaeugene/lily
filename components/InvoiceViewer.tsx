@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { CompanyBadge } from "@/components/ui";
-import { IconX, IconPrinter, IconDownload } from "@/components/icons";
+import { IconX, IconPrinter, IconDownload, IconShare } from "@/components/icons";
 import { fmt2 } from "@/lib/money";
 
 export interface InvoiceRef {
@@ -13,6 +13,8 @@ export interface InvoiceRef {
 }
 
 export default function InvoiceViewer({ invoice, onClose }: { invoice: InvoiceRef | null; onClose: () => void }) {
+  const [sharing, setSharing] = useState(false);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -21,13 +23,45 @@ export default function InvoiceViewer({ invoice, onClose }: { invoice: InvoiceRe
     return () => document.removeEventListener("keydown", onKey);
   }, [invoice, onClose]);
 
+  async function handleShare() {
+    if (!invoice) return;
+    setSharing(true);
+    try {
+      const res = await fetch(`/api/invoice/${invoice.id}/pdf`);
+      const contentType = res.headers.get("content-type") ?? "";
+
+      if (contentType.includes("application/pdf")) {
+        // Real PDF available — share the file directly (opens WhatsApp, Telegram, etc.)
+        const blob = await res.blob();
+        const file = new File([blob], `${invoice.invoiceNo}.pdf`, { type: "application/pdf" });
+
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: invoice.invoiceNo });
+          return;
+        }
+      }
+
+      // Fallback: share the URL (Web Share API, or open in new tab)
+      const url = `${window.location.origin}/api/invoice/${invoice.id}/pdf`;
+      if (navigator.share) {
+        await navigator.share({ title: invoice.invoiceNo, url });
+      } else {
+        window.open(url, "_blank");
+      }
+    } catch {
+      // user cancelled share or error — silently ignore
+    } finally {
+      setSharing(false);
+    }
+  }
+
   if (!invoice) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-ink/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-surface rounded-2xl shadow-pop w-full max-w-3xl max-h-[94vh] flex flex-col overflow-hidden">
 
-        {/* Header — compact on mobile */}
+        {/* Header */}
         <div className="flex items-center justify-between px-3 sm:px-5 h-14 border-b border-line gap-2 min-w-0">
           {/* Invoice identity */}
           <div className="flex items-center gap-2 min-w-0 overflow-hidden">
@@ -38,34 +72,49 @@ export default function InvoiceViewer({ invoice, onClose }: { invoice: InvoiceRe
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0">
+            {/* Print — opens PDF/HTML in new tab for browser print dialog */}
             <a
               href={`/api/invoice/${invoice.id}/pdf`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm text-ink hover:bg-canvas rounded-lg px-2 sm:px-3 py-1.5 whitespace-nowrap"
-              title="Print / Send"
+              className="inline-flex items-center gap-1.5 text-sm text-ink hover:bg-canvas rounded-lg px-2 sm:px-3 py-1.5"
+              title="Print"
             >
               <IconPrinter size={16} />
-              <span className="hidden sm:inline">Print / Send</span>
+              <span className="hidden sm:inline">Print</span>
             </a>
+
+            {/* Share — sends actual PDF file via Web Share API (WhatsApp, Telegram, email…) */}
+            <button
+              onClick={handleShare}
+              disabled={sharing}
+              className="inline-flex items-center gap-1.5 text-sm text-ink hover:bg-canvas rounded-lg px-2 sm:px-3 py-1.5 disabled:opacity-50"
+              title="Send / Share"
+            >
+              <IconShare size={16} />
+              <span className="hidden sm:inline">{sharing ? "Preparing…" : "Send"}</span>
+            </button>
+
+            {/* Save — downloads the file */}
             <a
               href={`/api/invoice/${invoice.id}`}
               target="_blank"
               rel="noreferrer"
               download
-              className="inline-flex items-center gap-1.5 text-sm text-ink hover:bg-canvas rounded-lg px-2 sm:px-3 py-1.5 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 text-sm text-ink hover:bg-canvas rounded-lg px-2 sm:px-3 py-1.5"
               title="Save"
             >
               <IconDownload size={16} />
               <span className="hidden sm:inline">Save</span>
             </a>
+
             <button onClick={onClose} aria-label="Close" className="text-muted hover:bg-canvas rounded-lg p-2">
               <IconX size={18} />
             </button>
           </div>
         </div>
 
-        {/* Invoice preview — viewport meta in the HTML auto-scales to fit */}
+        {/* Invoice preview */}
         <iframe
           src={`/api/invoice/${invoice.id}`}
           title={invoice.invoiceNo}

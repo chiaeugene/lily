@@ -113,3 +113,10 @@ export const IconSparkle = ({ className, size }: P) => (
     <path d="M12 8a4 4 0 0 0 4 4 4 4 0 0 0-4 4 4 4 0 0 0-4-4 4 4 0 0 0 4-4Z" />
   </svg>
 );
+export const IconShare = ({ className, size }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+    <polyline points="16 6 12 2 8 6" />
+    <line x1="12" y1="2" x2="12" y2="15" />
+  </svg>
+);

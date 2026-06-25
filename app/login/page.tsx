@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AuroraBackground } from "@/components/ui/aurora-background";
 import { LilyMark } from "@/components/Logo";
 
 const GREETINGS = [
@@ -19,25 +20,15 @@ const GREETINGS = [
 
 const LEN = 6;
 
+// Pick one greeting per session load — doesn't cycle
+const GREETING = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+
 export default function LoginPage() {
   const router = useRouter();
   const [digits, setDigits] = useState<string[]>(Array(LEN).fill(""));
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [greetIdx, setGreetIdx] = useState(0);
-  const [visible, setVisible] = useState(true);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      setVisible(false);
-      setTimeout(() => {
-        setGreetIdx((i) => (i + 1) % GREETINGS.length);
-        setVisible(true);
-      }, 350);
-    }, 3500);
-    return () => clearInterval(t);
-  }, []);
 
   async function submit(code: string) {
     setBusy(true);
@@ -83,28 +74,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-sidebar flex items-center justify-center px-4 relative overflow-hidden">
-      {/* Aurora warm glow */}
-      <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-        <div className="aurora" />
-      </div>
-
-      <div className="relative z-10 flex flex-col items-center text-center select-none">
-        {/* Logo mark */}
+    <AuroraBackground className="px-4">
+      <div className="flex flex-col items-center text-center">
         <LilyMark size={44} />
 
-        {/* Cycling greeting */}
-        <div className="mt-8 h-8 flex items-center justify-center">
-          <p
-            className="text-xl font-light tracking-wide text-white/80 transition-opacity duration-300"
-            style={{ opacity: visible ? 1 : 0 }}
-          >
-            {GREETINGS[greetIdx]}
-          </p>
-        </div>
+        <p className="mt-7 text-xl font-light tracking-wide text-ink/60">{GREETING}</p>
 
-        {/* 6-digit passcode */}
-        <div className={`mt-10 flex gap-3 ${error ? "animate-[shake_0.3s]" : ""}`}>
+        <div className={`mt-8 flex justify-center gap-2.5 ${error ? "animate-[shake_0.3s]" : ""}`}>
           {digits.map((d, i) => (
             <input
               key={i}
@@ -117,22 +93,17 @@ export default function LoginPage() {
               disabled={busy}
               aria-label={`Passcode digit ${i + 1}`}
               maxLength={1}
-              className={`w-11 h-14 rounded-xl text-center text-xl font-semibold outline-none border transition-all
-                bg-white/[0.08] text-white caret-transparent
-                ${error
-                  ? "border-red-400/50 bg-red-400/[0.06]"
-                  : "border-white/[0.15] focus:border-white/50 focus:bg-white/[0.12]"
-                }`}
+              className={`w-11 h-13 rounded-xl bg-white text-center text-xl font-semibold text-ink outline-none border transition
+                ${error ? "border-loss" : "border-line focus:border-primary focus:ring-2 focus:ring-primary/20"}`}
             />
           ))}
         </div>
 
-        {/* Status line */}
-        <div className="mt-4 h-5">
-          {error && <p className="text-sm text-red-300/90">Incorrect — try again</p>}
-          {busy && !error && <p className="text-sm text-white/35">Verifying…</p>}
+        <div className="mt-3 h-5">
+          {error && <p className="text-[13px] text-loss">Incorrect passcode — try again</p>}
+          {busy && !error && <p className="text-[13px] text-muted">Unlocking…</p>}
         </div>
       </div>
-    </div>
+    </AuroraBackground>
   );
 }

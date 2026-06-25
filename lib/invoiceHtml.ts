@@ -82,6 +82,7 @@ export function invoiceHtml(inv: Invoice): string {
     </div>`;
 
   return `<!doctype html><html><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=710"/>
 <style>
   @page { size: A4; margin: 12mm 12mm; }
   * { box-sizing: border-box; }

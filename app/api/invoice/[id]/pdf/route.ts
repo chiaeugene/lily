@@ -8,7 +8,7 @@ import { withAutoPrint } from "@/lib/pdf";
 // PDF via headless Chromium can be enabled on Render later (see lib/pdf.ts).
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const found = repo.getInvoice(id);
+  const found = await repo.getInvoice(id);
   if (!found) return NextResponse.json({ error: "invoice not found" }, { status: 404 });
   return new NextResponse(withAutoPrint(invoiceHtml(found.invoice)), {
     headers: { "content-type": "text/html; charset=utf-8" },

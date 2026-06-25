@@ -85,9 +85,9 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={onClose} />
-      <aside className="relative bg-surface w-full max-w-md h-full shadow-pop flex flex-col">
+      <aside className="relative bg-surface w-full max-w-lg max-h-[90vh] rounded-2xl shadow-pop flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 h-16 border-b border-line">
           <div>
             <h3 className="font-semibold text-ink">Review order</h3>

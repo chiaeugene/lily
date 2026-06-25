@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
   }
 
   const order = await parseOrder(text, msg?.from?.username || userId);
-  repo.addOrder(order);
+  await repo.addOrder(order);
 
   const conf = Math.round((order.parseConfidence ?? 0) * 100);
   const lines = order.lines

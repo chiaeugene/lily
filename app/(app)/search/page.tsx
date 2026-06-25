@@ -9,7 +9,7 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q = "" } = await searchParams;
-  const results = q ? repo.search(q) : [];
+  const results = q ? await repo.search(q) : [];
 
   return (
     <>
@@ -25,7 +25,7 @@ export default async function SearchPage({
           <button className="bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg px-5">Search</button>
         </form>
 
-        <Card title={q ? `Results for “${q}” (${results.length})` : "Enter a search term"}>
+        <Card title={q ? `Results for "${q}" (${results.length})` : "Enter a search term"}>
           {q && results.length === 0 ? (
             <p className="text-sm text-slate-400 py-4 text-center">No matches.</p>
           ) : (

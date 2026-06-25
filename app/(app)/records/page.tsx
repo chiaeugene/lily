@@ -2,9 +2,11 @@ import { repo } from "@/lib/repo";
 import { PageHeader, Card } from "@/components/ui";
 import TransactionsList from "@/components/TransactionsList";
 
-export default function RecordsPage() {
-  const txs = repo.allTransactions();
-  const audit = repo.audit(30);
+export default async function RecordsPage() {
+  const [txs, audit] = await Promise.all([
+    repo.allTransactions(),
+    repo.audit(30),
+  ]);
 
   return (
     <>

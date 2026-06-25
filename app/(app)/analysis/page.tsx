@@ -2,8 +2,8 @@ import { repo } from "@/lib/repo";
 import { PageHeader, Card, KpiCard } from "@/components/ui";
 import { fmt2 } from "@/lib/money";
 
-export default function AnalysisPage() {
-  const txs = repo.allTransactions();
+export default async function AnalysisPage() {
+  const txs = await repo.allTransactions();
 
   // aggregate by product (across Tien Ngai sell lines) and by customer
   const byProduct = new Map<string, { qty: number; sell: number }>();

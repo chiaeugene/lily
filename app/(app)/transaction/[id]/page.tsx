@@ -7,7 +7,7 @@ import { fmt2 } from "@/lib/money";
 
 export default async function TransactionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const tx = repo.getTransaction(id);
+  const tx = await repo.getTransaction(id);
   if (!tx) notFound();
 
   return (

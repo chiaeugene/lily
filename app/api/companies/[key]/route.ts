@@ -9,6 +9,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ke
     return NextResponse.json({ error: "unknown company" }, { status: 404 });
   }
   const body = await req.json().catch(() => ({}));
-  repo.updateCompany(key as CompanyKey, body);
-  return NextResponse.json({ ok: true, company: repo.getCompany(key as CompanyKey) });
+  await repo.updateCompany(key as CompanyKey, body);
+  return NextResponse.json({ ok: true, company: await repo.getCompany(key as CompanyKey) });
 }

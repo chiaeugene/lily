@@ -1,17 +1,22 @@
-// Repository layer. Today it is backed by the seeded in-memory store so the app
-// is fully usable without external services. The function surface is written so
-// a Supabase-backed implementation can drop in unchanged (see supabase/schema.sql).
+// Repository layer. In demo mode (no NEXT_PUBLIC_SUPABASE_URL) it uses the
+// seeded in-memory store so the app is fully usable without external services.
+// When the env var is present every method reads/writes Supabase instead.
+// All methods are async so both backends share the same call-site signature.
 
 import { store } from "./store";
 import { buildCascade } from "./cascade";
 import { formatInvoiceNo } from "./invoiceNumber";
 import { COMPANIES, CHAIN } from "./companies";
+import { getSupabaseAdmin } from "./supabase";
 import type {
   Customer,
   Product,
   MarginRule,
   Order,
+  OrderLine,
   Transaction,
+  Invoice,
+  InvoiceLine,
   AuditEntry,
   CompanyKey,
   Company,
@@ -19,7 +24,81 @@ import type {
 
 export const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-function log(actor: string, action: string, detail: string) {
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToOrder(r: any): Order {
+  return {
+    id: r.id,
+    source: r.source,
+    rawMessage: r.raw_message ?? undefined,
+    telegramUser: r.telegram_user ?? undefined,
+    customerId: r.customer_id ?? undefined,
+    customerName: r.customer_name,
+    customerAddressLines: r.customer_address_lines ?? [],
+    customerTel: r.customer_tel ?? undefined,
+    terms: r.terms,
+    date: r.date,
+    lines: r.lines as OrderLine[],
+    status: r.status,
+    parseConfidence: r.parse_confidence ?? undefined,
+    parseNotes: r.parse_notes ?? undefined,
+    createdAt: r.created_at,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToInvoice(r: any): Invoice {
+  return {
+    id: r.id,
+    company: r.company as CompanyKey,
+    invoiceNo: r.invoice_no,
+    doNo: r.do_no,
+    yourRef: r.your_ref ?? "",
+    toName: r.to_name,
+    toAddressLines: r.to_address_lines ?? [],
+    toTel: r.to_tel ?? undefined,
+    toFax: r.to_fax ?? undefined,
+    terms: r.terms,
+    date: r.date,
+    lines: r.lines as InvoiceLine[],
+    subtotal: Number(r.subtotal),
+    roundingAdj: Number(r.rounding_adj),
+    finalTotal: Number(r.final_total),
+    amountInWords: r.amount_in_words,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToTransaction(r: any, invoices: Invoice[]): Transaction {
+  return {
+    id: r.id,
+    orderId: r.order_id,
+    customerName: r.customer_name,
+    date: r.date,
+    invoices,
+    grandTotalSell: Number(r.grand_total_sell),
+    marginCaptured: Number(r.margin_captured),
+    createdAt: r.created_at,
+  };
+}
+
+async function fetchTransactionWithInvoices(
+  txRow: Record<string, unknown>,
+): Promise<Transaction> {
+  const db = getSupabaseAdmin();
+  const { data: invRows } = await db
+    .from("invoices")
+    .select("*")
+    .eq("transaction_id", txRow.id)
+    .order("id");
+  const invoices = (invRows ?? []).map(rowToInvoice);
+  return rowToTransaction(txRow, invoices);
+}
+
+// ── in-memory audit helper ────────────────────────────────────────────────────
+
+function memLog(actor: string, action: string, detail: string) {
   const entry: AuditEntry = {
     id: `a${store.audit.length + 1}`,
     at: new Date().toISOString(),
@@ -30,118 +109,432 @@ function log(actor: string, action: string, detail: string) {
   store.audit.unshift(entry);
 }
 
+async function dbLog(actor: string, action: string, detail: string) {
+  await getSupabaseAdmin()
+    .from("audit_log")
+    .insert({ actor, action, detail })
+    .then(() => {});
+}
+
+async function log(actor: string, action: string, detail: string) {
+  if (isDemoMode) memLog(actor, action, detail);
+  else await dbLog(actor, action, detail);
+}
+
+// ── repo ──────────────────────────────────────────────────────────────────────
+
 export const repo = {
-  // ── companies ────────────────────────────────────────────
-  listCompanies: (): Company[] => CHAIN.map((k) => COMPANIES[k]),
-  getCompany: (key: CompanyKey): Company => COMPANIES[key],
-  updateCompany(key: CompanyKey, patch: Partial<Company>) {
+  // ── companies (always from the in-memory COMPANIES object) ────────────────
+  listCompanies: async (): Promise<Company[]> => CHAIN.map((k) => COMPANIES[k]),
+  getCompany: async (key: CompanyKey): Promise<Company> => COMPANIES[key],
+
+  async updateCompany(key: CompanyKey, patch: Partial<Company>) {
     const allowed: (keyof Company)[] = [
       "name", "regNo", "tinNo", "formerlyKnownAs", "addressLines", "tel", "email", "banks",
     ];
+    // always update the in-memory object so the current session reflects it
     const target = COMPANIES[key] as unknown as Record<string, unknown>;
     const src = patch as Record<string, unknown>;
     for (const k of allowed) {
-      if (k in patch && src[k] !== undefined) {
-        target[k] = src[k];
+      if (k in patch && src[k] !== undefined) target[k] = src[k];
+    }
+    if (!isDemoMode) {
+      // persist to Supabase companies table (snake_case columns)
+      const db = getSupabaseAdmin();
+      const upsert: Record<string, unknown> = { key };
+      if ("name" in patch) upsert.name = patch.name;
+      if ("regNo" in patch) upsert.reg_no = patch.regNo;
+      if ("tinNo" in patch) upsert.tin_no = patch.tinNo;
+      if ("formerlyKnownAs" in patch) upsert.formerly_known_as = patch.formerlyKnownAs;
+      if ("addressLines" in patch) upsert.address_lines = patch.addressLines;
+      if ("tel" in patch) upsert.tel = patch.tel;
+      if ("email" in patch) upsert.email = patch.email;
+      if ("banks" in patch) upsert.banks = patch.banks;
+      await db.from("companies").upsert(upsert);
+    }
+    await log("admin", "company.update", `${key}: ${Object.keys(patch).join(", ")}`);
+  },
+
+  // ── catalog ───────────────────────────────────────────────────────────────
+  async listCustomers(): Promise<Customer[]> {
+    if (isDemoMode) return store.customers;
+    const { data } = await getSupabaseAdmin().from("customers").select("*").order("name");
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      addressLines: r.address_lines ?? [],
+      tel: r.tel ?? undefined,
+      fax: r.fax ?? undefined,
+    }));
+  },
+
+  async listProducts(): Promise<Product[]> {
+    if (isDemoMode) return store.products;
+    const { data } = await getSupabaseAdmin().from("products").select("*").order("name");
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      specLines: r.spec_lines ?? [],
+      uom: r.uom,
+    }));
+  },
+
+  async listMarginRules(): Promise<MarginRule[]> {
+    if (isDemoMode) return store.marginRules;
+    const { data } = await getSupabaseAdmin().from("margin_rules").select("*");
+    return (data ?? []).map((r) => ({
+      productId: r.product_id,
+      tier: r.tier as CompanyKey,
+      type: r.type as "rm_per_unit" | "percent",
+      value: Number(r.value),
+    }));
+  },
+
+  async getProduct(id: string): Promise<Product | undefined> {
+    if (isDemoMode) return store.products.find((p) => p.id === id);
+    const { data } = await getSupabaseAdmin().from("products").select("*").eq("id", id).single();
+    if (!data) return undefined;
+    return { id: data.id, name: data.name, specLines: data.spec_lines ?? [], uom: data.uom };
+  },
+
+  async upsertMarginRule(rule: MarginRule): Promise<void> {
+    if (isDemoMode) {
+      const i = store.marginRules.findIndex(
+        (r) => r.productId === rule.productId && r.tier === rule.tier,
+      );
+      if (i >= 0) store.marginRules[i] = rule;
+      else store.marginRules.push(rule);
+    } else {
+      await getSupabaseAdmin().from("margin_rules").upsert({
+        product_id: rule.productId,
+        tier: rule.tier,
+        type: rule.type,
+        value: rule.value,
+      });
+    }
+    await log("admin", "margin.update", `${rule.productId}/${rule.tier} -> ${rule.value} ${rule.type}`);
+  },
+
+  // ── orders ────────────────────────────────────────────────────────────────
+  async listPendingOrders(): Promise<Order[]> {
+    if (isDemoMode) return store.orders.filter((o) => o.status === "pending");
+    const { data } = await getSupabaseAdmin()
+      .from("orders")
+      .select("*")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    return (data ?? []).map(rowToOrder);
+  },
+
+  async getOrder(id: string): Promise<Order | undefined> {
+    if (isDemoMode) return store.orders.find((o) => o.id === id);
+    const { data } = await getSupabaseAdmin().from("orders").select("*").eq("id", id).single();
+    return data ? rowToOrder(data) : undefined;
+  },
+
+  async addOrder(order: Order): Promise<void> {
+    if (isDemoMode) {
+      store.orders.unshift(order);
+    } else {
+      await getSupabaseAdmin().from("orders").insert({
+        id: order.id,
+        source: order.source,
+        raw_message: order.rawMessage ?? null,
+        telegram_user: order.telegramUser ?? null,
+        customer_id: order.customerId ?? null,
+        customer_name: order.customerName,
+        customer_address_lines: order.customerAddressLines,
+        customer_tel: order.customerTel ?? null,
+        terms: order.terms,
+        date: order.date,
+        lines: order.lines,
+        status: order.status,
+        parse_confidence: order.parseConfidence ?? null,
+        parse_notes: order.parseNotes ?? null,
+        created_at: order.createdAt,
+      });
+    }
+    await log(
+      order.telegramUser ?? "telegram",
+      "order.received",
+      `${order.id} from ${order.customerName}`,
+    );
+  },
+
+  async patchOrder(
+    id: string,
+    updates: { customerName?: string; lines?: OrderLine[] },
+  ): Promise<void> {
+    if (isDemoMode) {
+      const o = store.orders.find((x) => x.id === id);
+      if (!o) return;
+      if (updates.customerName) o.customerName = updates.customerName;
+      if (updates.lines) o.lines = updates.lines;
+    } else {
+      const patch: Record<string, unknown> = {};
+      if (updates.customerName) patch.customer_name = updates.customerName;
+      if (updates.lines) patch.lines = updates.lines;
+      if (Object.keys(patch).length) {
+        await getSupabaseAdmin().from("orders").update(patch).eq("id", id);
       }
     }
-    log("admin", "company.update", `${key}: ${Object.keys(patch).join(", ")}`);
   },
 
-  // ── catalog ──────────────────────────────────────────────
-  listCustomers: (): Customer[] => store.customers,
-  listProducts: (): Product[] => store.products,
-  listMarginRules: (): MarginRule[] => store.marginRules,
-  getProduct: (id: string) => store.products.find((p) => p.id === id),
-
-  upsertMarginRule(rule: MarginRule) {
-    const i = store.marginRules.findIndex(
-      (r) => r.productId === rule.productId && r.tier === rule.tier,
-    );
-    if (i >= 0) store.marginRules[i] = rule;
-    else store.marginRules.push(rule);
-    log("admin", "margin.update", `${rule.productId}/${rule.tier} -> ${rule.value} ${rule.type}`);
-  },
-
-  // ── orders ───────────────────────────────────────────────
-  listPendingOrders: (): Order[] => store.orders.filter((o) => o.status === "pending"),
-  getOrder: (id: string) => store.orders.find((o) => o.id === id),
-  addOrder(order: Order) {
-    store.orders.unshift(order);
-    log(order.telegramUser ?? "telegram", "order.received", `${order.id} from ${order.customerName}`);
-  },
-
-  // ── transactions ─────────────────────────────────────────
-  recentTransactions: (n = 10): Transaction[] => store.transactions.slice(0, n),
-  allTransactions: (): Transaction[] => store.transactions,
-  getTransaction: (id: string) => store.transactions.find((t) => t.id === id),
-  getInvoice(invoiceId: string) {
-    for (const t of store.transactions) {
-      const inv = t.invoices.find((i) => i.id === invoiceId);
-      if (inv) return { invoice: inv, transaction: t };
+  async verifyOrder(orderId: string, actor = "admin"): Promise<Transaction | undefined> {
+    if (isDemoMode) {
+      const order = store.orders.find((o) => o.id === orderId);
+      if (!order) return undefined;
+      const txId = `TX-${Date.now().toString(36).toUpperCase()}`;
+      const tx = buildCascade(order, {
+        transactionId: txId,
+        orderId: order.id,
+        marginRules: store.marginRules,
+        allocateInvoiceNo: (company: CompanyKey) => {
+          store.counters[company] += 1;
+          return formatInvoiceNo(company, store.counters[company]);
+        },
+      });
+      order.status = "verified";
+      store.transactions.unshift(tx);
+      memLog(
+        actor,
+        "order.verified",
+        `${order.id} -> ${tx.id}: ${tx.invoices.map((i) => `${i.company} ${i.invoiceNo}`).join(", ")}`,
+      );
+      return tx;
     }
-    return undefined;
-  },
 
-  /** Verify a pending order: build the 3-invoice cascade and persist it. */
-  verifyOrder(orderId: string, actor = "admin"): Transaction | undefined {
-    const order = store.orders.find((o) => o.id === orderId);
-    if (!order) return undefined;
+    // ── Supabase path ──
+    const db = getSupabaseAdmin();
+
+    const { data: orderRow } = await db.from("orders").select("*").eq("id", orderId).single();
+    if (!orderRow) return undefined;
+    const order = rowToOrder(orderRow);
+
+    const { data: marginRows } = await db.from("margin_rules").select("*");
+    const marginRules: MarginRule[] = (marginRows ?? []).map((r) => ({
+      productId: r.product_id,
+      tier: r.tier as CompanyKey,
+      type: r.type as "rm_per_unit" | "percent",
+      value: Number(r.value),
+    }));
+
+    // fetch and increment all counters atomically enough for a single-tenant system
+    const counterMap: Record<string, number> = {};
+    for (const company of CHAIN) {
+      const { data: cRow } = await db
+        .from("invoice_counters")
+        .select("seq")
+        .eq("company", company)
+        .single();
+      const newSeq = (cRow?.seq ?? 0) + 1;
+      await db.from("invoice_counters").update({ seq: newSeq }).eq("company", company);
+      counterMap[company] = newSeq;
+    }
 
     const txId = `TX-${Date.now().toString(36).toUpperCase()}`;
     const tx = buildCascade(order, {
       transactionId: txId,
       orderId: order.id,
-      marginRules: store.marginRules,
-      allocateInvoiceNo: (company: CompanyKey) => {
-        store.counters[company] += 1;
-        return formatInvoiceNo(company, store.counters[company]);
-      },
+      marginRules,
+      allocateInvoiceNo: (company: CompanyKey) => formatInvoiceNo(company, counterMap[company]),
     });
-    order.status = "verified";
-    store.transactions.unshift(tx);
-    log(
+
+    // save transaction
+    await db.from("transactions").insert({
+      id: tx.id,
+      order_id: tx.orderId,
+      customer_name: tx.customerName,
+      date: tx.date,
+      grand_total_sell: tx.grandTotalSell,
+      margin_captured: tx.marginCaptured,
+      created_at: tx.createdAt,
+    });
+
+    // save invoices
+    for (const inv of tx.invoices) {
+      await db.from("invoices").insert({
+        id: inv.id,
+        transaction_id: tx.id,
+        company: inv.company,
+        invoice_no: inv.invoiceNo,
+        do_no: inv.doNo,
+        your_ref: inv.yourRef,
+        to_name: inv.toName,
+        to_address_lines: inv.toAddressLines,
+        to_tel: inv.toTel ?? null,
+        to_fax: inv.toFax ?? null,
+        terms: inv.terms,
+        date: inv.date,
+        lines: inv.lines,
+        subtotal: inv.subtotal,
+        rounding_adj: inv.roundingAdj,
+        final_total: inv.finalTotal,
+        amount_in_words: inv.amountInWords,
+      });
+    }
+
+    // mark order verified
+    await db.from("orders").update({ status: "verified" }).eq("id", orderId);
+
+    await dbLog(
       actor,
       "order.verified",
-      `${order.id} -> ${tx.id}: ${tx.invoices.map((i) => `${i.company} ${i.invoiceNo}`).join(", ")}`,
+      `${orderId} -> ${tx.id}: ${tx.invoices.map((i) => `${i.company} ${i.invoiceNo}`).join(", ")}`,
     );
     return tx;
   },
 
-  rejectOrder(orderId: string, actor = "admin") {
-    const order = store.orders.find((o) => o.id === orderId);
-    if (order) {
-      order.status = "rejected";
-      log(actor, "order.rejected", order.id);
+  async rejectOrder(orderId: string, actor = "admin"): Promise<void> {
+    if (isDemoMode) {
+      const o = store.orders.find((x) => x.id === orderId);
+      if (o) {
+        o.status = "rejected";
+        memLog(actor, "order.rejected", orderId);
+      }
+    } else {
+      await getSupabaseAdmin().from("orders").update({ status: "rejected" }).eq("id", orderId);
+      await dbLog(actor, "order.rejected", orderId);
     }
   },
 
-  // ── search & analytics ───────────────────────────────────
-  search(q: string) {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return [] as Transaction[];
-    return store.transactions.filter((t) => {
-      if (t.customerName.toLowerCase().includes(needle)) return true;
-      if (t.id.toLowerCase().includes(needle)) return true;
-      return t.invoices.some(
-        (i) =>
-          i.invoiceNo.toLowerCase().includes(needle) ||
-          i.lines.some((l) => l.description.toLowerCase().includes(needle)),
-      );
-    });
+  // ── transactions ──────────────────────────────────────────────────────────
+  async recentTransactions(n = 10): Promise<Transaction[]> {
+    if (isDemoMode) return store.transactions.slice(0, n);
+    const db = getSupabaseAdmin();
+    const { data: rows } = await db
+      .from("transactions")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(n);
+    return Promise.all((rows ?? []).map((r) => fetchTransactionWithInvoices(r)));
   },
 
-  kpis() {
-    const txs = store.transactions;
-    const todaySell = txs.reduce((s, t) => s + t.grandTotalSell, 0);
-    const margin = txs.reduce((s, t) => s + t.marginCaptured, 0);
+  async allTransactions(): Promise<Transaction[]> {
+    if (isDemoMode) return store.transactions;
+    const db = getSupabaseAdmin();
+    const { data: rows } = await db
+      .from("transactions")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return Promise.all((rows ?? []).map((r) => fetchTransactionWithInvoices(r)));
+  },
+
+  async getTransaction(id: string): Promise<Transaction | undefined> {
+    if (isDemoMode) return store.transactions.find((t) => t.id === id);
+    const db = getSupabaseAdmin();
+    const { data: row } = await db.from("transactions").select("*").eq("id", id).single();
+    if (!row) return undefined;
+    return fetchTransactionWithInvoices(row);
+  },
+
+  async getInvoice(
+    invoiceId: string,
+  ): Promise<{ invoice: Invoice; transaction: Transaction } | undefined> {
+    if (isDemoMode) {
+      for (const t of store.transactions) {
+        const inv = t.invoices.find((i) => i.id === invoiceId);
+        if (inv) return { invoice: inv, transaction: t };
+      }
+      return undefined;
+    }
+    const db = getSupabaseAdmin();
+    const { data: invRow } = await db.from("invoices").select("*").eq("id", invoiceId).single();
+    if (!invRow) return undefined;
+    const { data: txRow } = await db
+      .from("transactions")
+      .select("*")
+      .eq("id", invRow.transaction_id)
+      .single();
+    if (!txRow) return undefined;
+    const tx = await fetchTransactionWithInvoices(txRow);
+    const invoice = tx.invoices.find((i) => i.id === invoiceId)!;
+    return { invoice, transaction: tx };
+  },
+
+  // ── search & analytics ────────────────────────────────────────────────────
+  async search(q: string): Promise<Transaction[]> {
+    if (!q.trim()) return [];
+    if (isDemoMode) {
+      const needle = q.trim().toLowerCase();
+      return store.transactions.filter((t) => {
+        if (t.customerName.toLowerCase().includes(needle)) return true;
+        if (t.id.toLowerCase().includes(needle)) return true;
+        return t.invoices.some(
+          (i) =>
+            i.invoiceNo.toLowerCase().includes(needle) ||
+            i.lines.some((l) => l.description.toLowerCase().includes(needle)),
+        );
+      });
+    }
+    const db = getSupabaseAdmin();
+    // search by customer name or tx id (Postgres ilike)
+    const { data: txRows } = await db
+      .from("transactions")
+      .select("*")
+      .or(`customer_name.ilike.%${q}%,id.ilike.%${q}%`)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    // also search invoice numbers
+    const { data: invRows } = await db
+      .from("invoices")
+      .select("transaction_id")
+      .ilike("invoice_no", `%${q}%`);
+    const extraIds = (invRows ?? []).map((r: { transaction_id: string }) => r.transaction_id);
+    const allIds = [
+      ...new Set([...(txRows ?? []).map((r: { id: string }) => r.id), ...extraIds]),
+    ];
+    if (!allIds.length) return [];
+    const { data: allRows } = await db
+      .from("transactions")
+      .select("*")
+      .in("id", allIds)
+      .order("created_at", { ascending: false });
+    return Promise.all((allRows ?? []).map((r) => fetchTransactionWithInvoices(r)));
+  },
+
+  async kpis(): Promise<{
+    pending: number;
+    transactions: number;
+    totalSell: number;
+    marginCaptured: number;
+  }> {
+    if (isDemoMode) {
+      const txs = store.transactions;
+      return {
+        pending: store.orders.filter((o) => o.status === "pending").length,
+        transactions: txs.length,
+        totalSell: txs.reduce((s, t) => s + t.grandTotalSell, 0),
+        marginCaptured: txs.reduce((s, t) => s + t.marginCaptured, 0),
+      };
+    }
+    const db = getSupabaseAdmin();
+    const [{ count: pendingCount }, { data: agg }] = await Promise.all([
+      db.from("orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
+      db.from("transactions").select("grand_total_sell,margin_captured"),
+    ]);
+    const txs = agg ?? [];
     return {
-      pending: repo.listPendingOrders().length,
+      pending: pendingCount ?? 0,
       transactions: txs.length,
-      totalSell: todaySell,
-      marginCaptured: margin,
+      totalSell: txs.reduce((s: number, t: { grand_total_sell: string }) => s + Number(t.grand_total_sell), 0),
+      marginCaptured: txs.reduce((s: number, t: { margin_captured: string }) => s + Number(t.margin_captured), 0),
     };
   },
 
-  audit: (n = 20): AuditEntry[] => store.audit.slice(0, n),
+  async audit(n = 20): Promise<AuditEntry[]> {
+    if (isDemoMode) return store.audit.slice(0, n);
+    const { data } = await getSupabaseAdmin()
+      .from("audit_log")
+      .select("*")
+      .order("at", { ascending: false })
+      .limit(n);
+    return (data ?? []).map((r) => ({
+      id: String(r.id),
+      at: r.at,
+      actor: r.actor,
+      action: r.action,
+      detail: r.detail ?? "",
+    }));
+  },
 };

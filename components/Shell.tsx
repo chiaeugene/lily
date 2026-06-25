@@ -18,8 +18,8 @@ const NAV = [
   { href: "/settings", label: "Settings", Icon: IconSettings },
 ];
 
-export default function Shell({ children }: { children: React.ReactNode }) {
-  const pending = repo.listPendingOrders().length;
+export default async function Shell({ children }: { children: React.ReactNode }) {
+  const pending = (await repo.listPendingOrders()).length;
   return (
     <div className="min-h-screen flex">
       {/* warm aurora behind the floating cards */}
@@ -37,7 +37,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               href={n.href}
               label={n.label}
               icon={<n.Icon size={18} />}
-              badge={n.href === "/" ? pending : 0}
+              badge={n.href === "/dashboard" ? pending : 0}
             />
           ))}
         </nav>

@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   if (!body || !body.productId || !body.tier) {
     return NextResponse.json({ error: "invalid rule" }, { status: 400 });
   }
-  repo.upsertMarginRule({
+  await repo.upsertMarginRule({
     productId: body.productId,
     tier: body.tier,
     type: body.type === "percent" ? "percent" : "rm_per_unit",

@@ -5,10 +5,12 @@ import PendingList from "@/components/PendingList";
 import TransactionsList from "@/components/TransactionsList";
 import { IconArrowRight } from "@/components/icons";
 
-export default function Dashboard() {
-  const k = repo.kpis();
-  const pending = repo.listPendingOrders();
-  const recent = repo.recentTransactions(10);
+export default async function Dashboard() {
+  const [k, pending, recent] = await Promise.all([
+    repo.kpis(),
+    repo.listPendingOrders(),
+    repo.recentTransactions(10),
+  ]);
 
   return (
     <>

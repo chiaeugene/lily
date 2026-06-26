@@ -9,10 +9,12 @@ import {
   IconChart,
   IconArchive,
   IconSettings,
+  IconQuote,
 } from "@/components/icons";
 
 const NAV = [
   { href: "/dashboard",  label: "Dashboard",     Icon: IconDashboard },
+  { href: "/quotation",  label: "Quotation",      Icon: IconQuote },
   { href: "/search",     label: "Search",         Icon: IconSearch },
   { href: "/analysis",   label: "Sales Analysis", Icon: IconChart },
   { href: "/records",    label: "Records",        Icon: IconArchive },

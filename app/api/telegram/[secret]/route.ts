@@ -38,26 +38,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
   const text: string = msg?.text ?? "";
   if (!chatId || !text) return NextResponse.json({ ok: true });
 
-  // allow-list check — FAIL CLOSED. If no allow-list is configured the bot
-  // accepts nobody, so strangers who discover the bot can't inject orders.
+  // Authorisation — OPEN by default so anyone in the order group can submit.
+  // Set TELEGRAM_ALLOWED_USER_IDS later to lock down to specific Telegram IDs.
   const allowed = (process.env.TELEGRAM_ALLOWED_USER_IDS || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-
-  if (!allowed.length) {
-    // Not configured yet. Reply with the sender's own ID so the admin can paste
-    // it straight into TELEGRAM_ALLOWED_USER_IDS (solves "how do I find my ID").
-    await reply(
-      chatId,
-      `⚠ This bot isn't authorised for anyone yet.\n\nYour Telegram ID is:\n${userId}\n\nAsk the administrator to add it to TELEGRAM_ALLOWED_USER_IDS on the server, then try again.`,
-    );
-    return NextResponse.json({ ok: true });
-  }
-  if (!allowed.includes(userId)) {
+  if (allowed.length && !allowed.includes(userId)) {
     await reply(chatId, "Sorry, you're not authorised to submit orders.");
     return NextResponse.json({ ok: true });
   }
+
+  const isGroup = msg?.chat?.type === "group" || msg?.chat?.type === "supergroup";
 
   // /start or /order → send the blank template
   if (text.startsWith("/start") || text.startsWith("/order")) {
@@ -65,16 +57,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
     return NextResponse.json({ ok: true });
   }
 
+  // /id → reply with the sender's Telegram ID (handy if locking down later)
+  if (text.startsWith("/id") || text.startsWith("/whoami")) {
+    await reply(chatId, `Your Telegram ID: ${userId}`);
+    return NextResponse.json({ ok: true });
+  }
+
   // /help
   if (text.startsWith("/help")) {
     await reply(
       chatId,
-      "Commands:\n/order — get the order template\n/start — same\n\nOr just send the filled template directly. Open the dashboard after to verify and generate the 3 invoices.",
+      "Just type your order, e.g.\n\"68 boxes coreless 57x38x12 to KF Advisor @54.50 cod\"\n\n/order — get a fill-in template\n/id — show your Telegram ID\n\nAfter sending, open the dashboard to verify & generate the 3 invoices.",
     );
     return NextResponse.json({ ok: true });
   }
 
   const order = await parseOrder(text, msg?.from?.username || userId);
+
+  // Anti-chatter guard: only queue when a real catalog product actually matched.
+  // In a group this keeps everyday conversation from creating bogus orders;
+  // in a private chat we nudge the sender toward the right format.
+  const hasRealLine = order.lines.some(
+    (l) => l.qty > 0 && l.productId && !l.productId.startsWith("adhoc-"),
+  );
+  if (!hasRealLine) {
+    if (!isGroup) {
+      await reply(
+        chatId,
+        "I couldn't read an order from that. Send /order for the template, or e.g.\n\"68 boxes coreless 57x38x12 to KF Advisor @54.50 cod\".",
+      );
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   await repo.addOrder(order);
 
   const conf  = Math.round((order.parseConfidence ?? 0) * 100);

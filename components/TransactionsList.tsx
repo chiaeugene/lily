@@ -93,7 +93,7 @@ export default function TransactionsList({ transactions }: { transactions: Trans
                     <IconBtn title="Print / Send" href={`/api/invoice/${inv.id}/pdf`}>
                       <IconPrinter size={17} />
                     </IconBtn>
-                    <IconBtn title="Save" href={`/api/invoice/${inv.id}`}>
+                    <IconBtn title="Save" href={`/api/invoice/${inv.id}/pdf`}>
                       <IconDownload size={17} />
                     </IconBtn>
                   </div>

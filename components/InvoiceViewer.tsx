@@ -29,27 +29,34 @@ export default function InvoiceViewer({ invoice, onClose }: { invoice: InvoiceRe
     try {
       const res = await fetch(`/api/invoice/${invoice.id}/pdf`);
       const contentType = res.headers.get("content-type") ?? "";
+      const filename = `${invoice.invoiceNo}.pdf`;
 
       if (contentType.includes("application/pdf")) {
-        // Real PDF available — share the file directly (opens WhatsApp, Telegram, etc.)
         const blob = await res.blob();
-        const file = new File([blob], `${invoice.invoiceNo}.pdf`, { type: "application/pdf" });
+        const file = new File([blob], filename, { type: "application/pdf" });
 
+        // Mobile: native share sheet WITH the actual PDF file (WhatsApp, Telegram, email…)
         if (navigator.canShare?.({ files: [file] })) {
           await navigator.share({ files: [file], title: invoice.invoiceNo });
           return;
         }
+
+        // Desktop / no file-share support: download the real PDF so it can be attached.
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        return;
       }
 
-      // Fallback: share the URL (Web Share API, or open in new tab)
-      const url = `${window.location.origin}/api/invoice/${invoice.id}/pdf`;
-      if (navigator.share) {
-        await navigator.share({ title: invoice.invoiceNo, url });
-      } else {
-        window.open(url, "_blank");
-      }
+      // PDF unavailable (no Chromium) — open the printable document instead.
+      window.open(`/api/invoice/${invoice.id}/pdf`, "_blank");
     } catch {
-      // user cancelled share or error — silently ignore
+      // user cancelled the share sheet — silently ignore
     } finally {
       setSharing(false);
     }
@@ -95,12 +102,12 @@ export default function InvoiceViewer({ invoice, onClose }: { invoice: InvoiceRe
               <span className="hidden sm:inline">{sharing ? "Preparing…" : "Send"}</span>
             </button>
 
-            {/* Save — downloads the file */}
+            {/* Save — downloads the real PDF */}
             <a
-              href={`/api/invoice/${invoice.id}`}
+              href={`/api/invoice/${invoice.id}/pdf`}
               target="_blank"
               rel="noreferrer"
-              download
+              download={`${invoice.invoiceNo}.pdf`}
               className="inline-flex items-center gap-1.5 text-sm text-ink hover:bg-canvas rounded-lg px-2 sm:px-3 py-1.5"
               title="Save"
             >

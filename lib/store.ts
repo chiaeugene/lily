@@ -11,7 +11,7 @@ import type {
   AuditEntry,
   CompanyKey,
 } from "./types";
-import { SEED_PRODUCTS } from "./catalog";
+import { SEED_PRODUCTS, SEED_MARGIN_RULES } from "./catalog";
 
 function todayDDMMYYYY(d = new Date()): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
@@ -49,16 +49,9 @@ function seed(): Store {
 
   const products: Product[] = SEED_PRODUCTS;
 
-  // Chain: Tien Ngai (origin) -> Prim -> 3C (sells to customer at RM8.00/kg).
-  // Margins are taken by the non-origin companies:
-  //  3c   cut RM0.40/kg -> Prim->3C price 7.60
-  //  prim cut RM0.40/kg -> TienNgai->Prim price 7.20  (Tien Ngai = origin, no margin rule)
-  const marginRules: MarginRule[] = [
-    { productId: "tp-48-225", tier: "3c", type: "rm_per_unit", value: 0.4 },
-    { productId: "tp-48-225", tier: "prim", type: "rm_per_unit", value: 0.4 },
-    { productId: "coreless-57-38-12", tier: "3c", type: "rm_per_unit", value: 3.0 },
-    { productId: "coreless-57-38-12", tier: "prim", type: "rm_per_unit", value: 3.0 },
-  ];
+  // Margins are taken by the non-origin companies (prim, 3c); Tien Ngai = origin.
+  // Real anchors (RM/unit) kept verbatim; all other SKUs default to 5%/tier.
+  const marginRules: MarginRule[] = SEED_MARGIN_RULES;
 
   return {
     customers,

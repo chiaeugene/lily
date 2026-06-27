@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { SEED_PRODUCTS } from "../lib/catalog";
+import { SEED_PRODUCTS, SEED_MARGIN_RULES } from "../lib/catalog";
 
 // Load .env.local manually (tsx doesn't auto-read it).
 const here = dirname(fileURLToPath(import.meta.url));
@@ -28,7 +28,21 @@ async function main() {
 
   const { error } = await db.from("products").upsert(rows, { onConflict: "id" });
   if (error) {
-    console.error("Upsert failed:", error.message);
+    console.error("Products upsert failed:", error.message);
+    process.exit(1);
+  }
+
+  // Margin rules — upsert by (product_id, tier). FK requires the product to exist,
+  // which it now does after the products upsert above.
+  const ruleRows = SEED_MARGIN_RULES.map((r) => ({
+    product_id: r.productId,
+    tier: r.tier,
+    type: r.type,
+    value: r.value,
+  }));
+  const { error: mErr } = await db.from("margin_rules").upsert(ruleRows, { onConflict: "product_id,tier" });
+  if (mErr) {
+    console.error("Margin rules upsert failed:", mErr.message);
     process.exit(1);
   }
 
@@ -36,7 +50,10 @@ async function main() {
     .from("products")
     .select("id,name,uom", { count: "exact" })
     .order("id");
-  console.log(`products table now has ${count} rows:`);
+  const { count: ruleCount } = await db
+    .from("margin_rules")
+    .select("*", { count: "exact", head: true });
+  console.log(`products table now has ${count} rows, margin_rules has ${ruleCount}:`);
   for (const r of data ?? []) console.log(`  ${r.id.padEnd(20)} ${r.uom.padEnd(7)} ${r.name}`);
 }
 

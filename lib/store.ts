@@ -11,6 +11,7 @@ import type {
   AuditEntry,
   CompanyKey,
 } from "./types";
+import { SEED_PRODUCTS } from "./catalog";
 
 function todayDDMMYYYY(d = new Date()): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
@@ -46,20 +47,7 @@ function seed(): Store {
     },
   ];
 
-  const products: Product[] = [
-    {
-      id: "tp-48-225",
-      name: "THERMAL PAPER 48GSM 225MM",
-      specLines: ["59.5KG-1ROLL", "58.5KG-1ROLL"],
-      uom: "KGS",
-    },
-    {
-      id: "coreless-57-38-12",
-      name: "CORELESS THERMAL PAPER BLANK ROLL",
-      specLines: ["57MMX38MMX12MM", "10IN1 PACK", "200R/CTN"],
-      uom: "BOXES",
-    },
-  ];
+  const products: Product[] = SEED_PRODUCTS;
 
   // Chain: Tien Ngai (origin) -> Prim -> 3C (sells to customer at RM8.00/kg).
   // Margins are taken by the non-origin companies:
@@ -111,7 +99,7 @@ function seed(): Store {
         at: new Date().toISOString(),
         actor: "system",
         action: "seed",
-        detail: "Demo data loaded (3 companies, 2 customers, 2 products, margin rules).",
+        detail: `Demo data loaded (3 companies, 2 customers, ${products.length} products, margin rules).`,
       },
     ],
     // start counters near the real last-seen numbers so generated nos look live

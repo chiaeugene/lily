@@ -98,15 +98,18 @@ function parseStructured(
 
 // ── 2. Claude free-form parser ─────────────────────────────────────────────────
 
-const SYSTEM = `You convert a Malaysian thermal-paper sales order (written in a Telegram message, English or Malay, free-form or structured) into strict JSON.
+const SYSTEM = `You convert a Malaysian paper-products sales order (Telegram message, English or Malay, free-form or structured) into strict JSON.
+The seller deals in three families: TISSUE (napkins, jumbo roll tissue, serviette), PAPER ROLLS (thermal receipt rolls, coreless rolls, cash-register/carbonless rolls, printed rolls) and a thermal jumbo master roll.
 Return ONLY JSON of shape:
 {"customerName": string, "terms": string, "lines":[{"productName": string, "qty": number, "uom": string, "sellUnitPrice": number, "specLines": string[]}], "confidence": number (0..1), "notes": string}
 Rules:
+- ALWAYS prefer an exact match from the "Known products" list and copy its full name verbatim into productName. Only invent a name if nothing matches.
+- Map shorthand to the known product, e.g.: "5740" or "57x40" -> "...57MM X 40MM"; "5760"/"57x60" -> 57MM X 60MM; "80" or "80x80" thermal -> "THERMAL PAPER ROLL 80MM X 80MM"; "coreless 57" -> "CORELESS...57MM X 38MM X 12MM"; "cocktail 2ply" -> "COCKTAIL NAPKIN 2PLY..."; "luncheon"/"dinner" similarly; "76 2ply"/"carbonless 76" -> "CASH REGISTER ROLL CARBONLESS 76MM X 65MM X 12MM 2PLY (W/Y)"; "76 1ply"/"woodfree 76" -> the HI-WHITE 1PLY one; "jrt" -> "JUMBO ROLL TISSUE"; "48gsm 225" -> "THERMAL PAPER 48GSM 225MM".
 - sellUnitPrice is the price charged to the end customer (per unit). Never invent upstream prices.
-- uom is usually KGS (thermal paper sold by weight) or BOXES (finished rolls).
-- specLines are extra product details like "59.5KG-1ROLL" or "57MMX38MMX12MM".
+- uom: use the matched product's own UOM. Generally KGS (thermal jumbo, by weight), BOXES (thermal/coreless/register rolls and napkins), CTN (jumbo roll tissue, serviette).
+- specLines are extra product details like "59.5KG-1ROLL", "10 IN 1 PACK", "200R/CTN", "20PKTS X 250'S". Leave [] if none given.
 - terms default "C.O.D." if unspecified.
-- confidence: 1.0 if every field is explicit; lower if anything is ambiguous; explain in notes.`;
+- confidence: 1.0 if every field is explicit and the product matched a known one; lower if anything is ambiguous; explain in notes.`;
 
 async function callClaude(
   message: string,

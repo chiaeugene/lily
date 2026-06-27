@@ -31,8 +31,8 @@ export function invoiceHtml(
     <div class="hdr">
       ${c.showLogo ? `<div class="logo">${esc(c.logoText ?? "")}</div>` : ""}
       ${
-        c.showQr || c.showLhdnLink
-          ? `<div class="hdr-right">${c.showQr ? fauxQr() : ""}${
+        (c.showQr && !c.qrInFooter) || c.showLhdnLink
+          ? `<div class="hdr-right">${c.showQr && !c.qrInFooter ? fauxQr() : ""}${
               c.showLhdnLink ? `<div class="lhdn">LHDN Validated<br/>Link</div>` : ""
             }</div>`
           : ""
@@ -81,6 +81,7 @@ export function invoiceHtml(
 
   const footer = `
     <div class="foot">
+      ${c.showQr && c.qrInFooter ? `<div class="foot-qr">${fauxQr()}</div>` : ""}
       <div class="foot-co">${esc(c.name)}</div>
       <div class="foot-line">This is a computer generated ${docWord}</div>
       <div class="foot-line">No Signature is required</div>
@@ -143,6 +144,8 @@ export function invoiceHtml(
   .note { font-size:10px; line-height:1.35; }
   .note.bank { margin:2px 0; font-weight:bold; }
   .foot { width:38%; text-align:center; align-self:flex-end; }
+  .foot-qr { text-align:center; margin-bottom:4px; }
+  .foot-qr svg { fill:#000; }
   .foot-co { font-family:"Times New Roman",Georgia,serif; font-weight:bold; }
   .foot-line { font-family:"Times New Roman",Georgia,serif; font-size:10px; }
   .sig-line { border-top:1px solid #000; margin:26px 12px 4px; }

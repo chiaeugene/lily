@@ -25,6 +25,7 @@ export interface Company {
   showLogo: boolean;
   logoText?: string;
   showQr: boolean;
+  qrInFooter?: boolean; // Tien Ngai prints its QR bottom-right (by the footer), not in the header
   showLhdnLink: boolean;
   showRoundingRow: boolean;
   showAuthorisedSignature: boolean;

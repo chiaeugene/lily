@@ -51,14 +51,18 @@ export default function TransactionsList({ transactions }: { transactions: Trans
       <div className="divide-y divide-line">
         {transactions.map((t) => (
           <div key={t.id} className="py-3.5 first:pt-0 last:pb-0">
-            {/* transaction summary */}
-            <div className="flex items-center gap-3">
-              <Link href={`/transaction/${t.id}`} className="font-medium text-sm text-ink hover:text-primary">
-                {t.customerName}
-              </Link>
-              <span className="font-mono text-[11px] text-faint">{t.id}</span>
-              <span className="text-[12px] text-muted">{t.date}</span>
-              <div className="ml-auto flex items-center gap-5">
+            {/* transaction summary — name+meta stack on the left, totals on the right */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <Link href={`/transaction/${t.id}`} className="font-medium text-sm text-ink hover:text-primary block truncate">
+                  {t.customerName}
+                </Link>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="font-mono text-[11px] text-faint">{t.id}</span>
+                  <span className="text-[12px] text-muted">{t.date}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 sm:gap-5 shrink-0">
                 <div className="text-right">
                   <div className="text-[11px] text-faint">Sales</div>
                   <div className="tnum text-sm font-medium">RM {fmt2(t.grandTotalSell)}</div>

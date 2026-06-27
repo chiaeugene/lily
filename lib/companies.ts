@@ -64,6 +64,7 @@ const DEFAULT_COMPANIES: Record<CompanyKey, Company> = {
     invoicePrefix: "INV-",
     showLogo: false,
     showQr: true,
+    qrInFooter: true, // QR prints bottom-right by the footer (matches INV-187880)
     showLhdnLink: false,
     showRoundingRow: false,
     showAuthorisedSignature: false,

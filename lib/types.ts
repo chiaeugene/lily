@@ -70,11 +70,13 @@ export interface OrderLine {
   disc?: number;
 }
 
-export type OrderStatus = "pending" | "verified" | "rejected";
+// pending/verified/rejected = order lifecycle; quote/accepted = quotation lifecycle
+// (a quotation is stored as an order row with source="quotation").
+export type OrderStatus = "pending" | "verified" | "rejected" | "quote" | "accepted";
 
 export interface Order {
   id: string;
-  source: "telegram" | "manual";
+  source: "telegram" | "manual" | "quotation";
   rawMessage?: string;
   telegramUser?: string;
   customerId?: string;

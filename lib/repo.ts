@@ -99,6 +99,27 @@ async function fetchTransactionWithInvoices(
   return rowToTransaction(txRow, invoices);
 }
 
+// Maps an Order to its snake_case `orders` table row (used by inserts).
+function orderRow(o: Order) {
+  return {
+    id: o.id,
+    source: o.source,
+    raw_message: o.rawMessage ?? null,
+    telegram_user: o.telegramUser ?? null,
+    customer_id: o.customerId ?? null,
+    customer_name: o.customerName,
+    customer_address_lines: o.customerAddressLines,
+    customer_tel: o.customerTel ?? null,
+    terms: o.terms,
+    date: o.date,
+    lines: o.lines,
+    status: o.status,
+    parse_confidence: o.parseConfidence ?? null,
+    parse_notes: o.parseNotes ?? null,
+    created_at: o.createdAt,
+  };
+}
+
 // ── in-memory audit helper ────────────────────────────────────────────────────
 
 function memLog(actor: string, action: string, detail: string) {
@@ -401,6 +422,89 @@ export const repo = {
       await getSupabaseAdmin().from("orders").update({ status: "rejected" }).eq("id", orderId);
       await dbLog(actor, "order.rejected", orderId);
     }
+  },
+
+  // ── quotations (stored as orders with source="quotation") ───────────────────
+  async nextQuoteNo(): Promise<string> {
+    const d = new Date();
+    const ym = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const prefix = `QT-${ym}-`;
+    let count: number;
+    if (isDemoMode) {
+      count = store.orders.filter((o) => o.source === "quotation" && o.id.startsWith(prefix)).length;
+    } else {
+      const { data } = await getSupabaseAdmin()
+        .from("orders")
+        .select("id")
+        .eq("source", "quotation")
+        .like("id", `${prefix}%`);
+      count = data?.length ?? 0;
+    }
+    return `${prefix}${String(count + 1).padStart(3, "0")}`;
+  },
+
+  async addQuotation(order: Order): Promise<void> {
+    if (isDemoMode) {
+      store.orders.unshift(order);
+    } else {
+      await getSupabaseAdmin().from("orders").insert(orderRow(order));
+    }
+    await log("admin", "quote.created", `${order.id} for ${order.customerName}`);
+  },
+
+  async listQuotations(): Promise<Order[]> {
+    if (isDemoMode) {
+      return store.orders.filter((o) => o.source === "quotation");
+    }
+    const { data } = await getSupabaseAdmin()
+      .from("orders")
+      .select("*")
+      .eq("source", "quotation")
+      .order("created_at", { ascending: false });
+    return (data ?? []).map(rowToOrder);
+  },
+
+  async getQuotation(id: string): Promise<Order | undefined> {
+    if (isDemoMode) return store.orders.find((o) => o.id === id && o.source === "quotation");
+    const { data } = await getSupabaseAdmin().from("orders").select("*").eq("id", id).single();
+    return data ? rowToOrder(data) : undefined;
+  },
+
+  // Accepting a quote spawns a fresh pending order (the normal cascade input)
+  // and marks the quote "accepted" so it stays on record.
+  async convertQuotationToOrder(id: string): Promise<string | undefined> {
+    let quote: Order | undefined;
+    if (isDemoMode) {
+      quote = store.orders.find((o) => o.id === id && o.source === "quotation");
+    } else {
+      const { data } = await getSupabaseAdmin().from("orders").select("*").eq("id", id).single();
+      quote = data ? rowToOrder(data) : undefined;
+    }
+    if (!quote) return undefined;
+
+    const newId = `ord-${Date.now().toString(36)}`;
+    const newOrder: Order = {
+      ...quote,
+      id: newId,
+      source: "manual",
+      status: "pending",
+      rawMessage: `Converted from quotation ${id}`,
+      parseConfidence: undefined,
+      parseNotes: undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (isDemoMode) {
+      store.orders.unshift(newOrder);
+      const q = store.orders.find((o) => o.id === id);
+      if (q) q.status = "accepted";
+    } else {
+      const db = getSupabaseAdmin();
+      await db.from("orders").insert(orderRow(newOrder));
+      await db.from("orders").update({ status: "accepted" }).eq("id", id);
+    }
+    await log("admin", "quote.accepted", `${id} -> order ${newId}`);
+    return newId;
   },
 
   // ── transactions ──────────────────────────────────────────────────────────

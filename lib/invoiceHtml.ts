@@ -18,8 +18,14 @@ function fauxQr(): string {
 }
 
 /** Full standalone A4 invoice HTML for one company skin. */
-export function invoiceHtml(inv: Invoice, opts: { voided?: boolean } = {}): string {
+export function invoiceHtml(
+  inv: Invoice,
+  opts: { voided?: boolean; docLabel?: "INVOICE" | "QUOTATION"; validUntil?: string } = {},
+): string {
   const c = COMPANIES[inv.company];
+  const label = opts.docLabel ?? "INVOICE";
+  const isQuote = label === "QUOTATION";
+  const docWord = isQuote ? "Quotation" : "Invoice";
 
   const header = `
     <div class="hdr">
@@ -76,7 +82,7 @@ export function invoiceHtml(inv: Invoice, opts: { voided?: boolean } = {}): stri
   const footer = `
     <div class="foot">
       <div class="foot-co">${esc(c.name)}</div>
-      <div class="foot-line">This is a computer generated Invoice</div>
+      <div class="foot-line">This is a computer generated ${docWord}</div>
       <div class="foot-line">No Signature is required</div>
       ${c.showAuthorisedSignature ? `<div class="sig-line"></div><div class="foot-line">Authorised Signature</div>` : ""}
     </div>`;
@@ -146,7 +152,7 @@ export function invoiceHtml(inv: Invoice, opts: { voided?: boolean } = {}): stri
   <div class="sheet">
     ${header}
     <hr class="rule"/>
-    <div class="title-row"><div class="title">INVOICE</div><div class="inv-no">No. : ${esc(inv.invoiceNo)}</div></div>
+    <div class="title-row"><div class="title">${label}</div><div class="inv-no">No. : ${esc(inv.invoiceNo)}</div></div>
     <div class="meta">
       <div class="billbox">
         <span class="corner tl"></span><span class="corner tr"></span>
@@ -157,7 +163,11 @@ export function invoiceHtml(inv: Invoice, opts: { voided?: boolean } = {}): stri
       </div>
       <div class="info">
         <div class="r"><span class="k">Your Ref.</span><span class="colon">:</span><span>${esc(inv.yourRef)}</span></div>
-        <div class="r"><span class="k">Our D/O No.</span><span class="colon">:</span><span>${esc(inv.doNo)}</span></div>
+        ${
+          isQuote
+            ? `<div class="r"><span class="k">Valid Until</span><span class="colon">:</span><span>${esc(opts.validUntil ?? "")}</span></div>`
+            : `<div class="r"><span class="k">Our D/O No.</span><span class="colon">:</span><span>${esc(inv.doNo)}</span></div>`
+        }
         <div class="r"><span class="k">Terms</span><span class="colon">:</span><span>${esc(inv.terms)}</span></div>
         <div class="r"><span class="k">Date</span><span class="colon">:</span><span>${esc(inv.date)}</span></div>
         <div class="r"><span class="k">Page</span><span class="colon">:</span><span>1 of 1</span></div>

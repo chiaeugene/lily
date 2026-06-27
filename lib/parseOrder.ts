@@ -7,6 +7,7 @@
 import { repo } from "./repo";
 import type { Order, OrderLine, Product, Customer } from "./types";
 import { todayDDMMYYYY } from "./store";
+import { matchProduct } from "./productMatch";
 
 interface ParsedDraft {
   customerName: string;
@@ -54,15 +55,8 @@ function parseStructured(
       custLower.includes(c.name.toLowerCase()),
   );
 
-  // fuzzy-match product
-  const prodLower = rawProduct.toLowerCase();
-  const prod = products.find(
-    (p) =>
-      p.name.toLowerCase() === prodLower ||
-      p.name.toLowerCase().includes(prodLower) ||
-      prodLower.includes(p.name.toLowerCase()) ||
-      p.name.toLowerCase().split(" ").some((w) => w.length > 3 && prodLower.includes(w)),
-  );
+  // match product via the shared deterministic matcher (handles shorthand/sizes/ply)
+  const prod = matchProduct(rawProduct, products)?.product;
 
   const missing: string[] = [];
   if (!rawCustomer) missing.push("Customer");
@@ -149,29 +143,74 @@ async function callClaude(
 
 // ── 3. Offline heuristic fallback ─────────────────────────────────────────────
 
+const QTY_UOM = /(\d+(?:\.\d+)?)\s*(kgs?|boxes?|box|ctns?|ctn|rolls?|pkts?|packs?|units?|pcs?)\b/i;
+const PRICE = /(?:@|at|rm|price[:\s]*)\s*(\d+(?:\.\d+)?)/i;
+
+function uomFromWord(w?: string): string | undefined {
+  if (!w) return undefined;
+  const s = w.toLowerCase();
+  if (s.startsWith("kg")) return "KGS";
+  if (s.startsWith("box")) return "BOXES";
+  if (s.startsWith("ctn")) return "CTN";
+  if (s.startsWith("roll")) return "ROLLS";
+  return undefined;
+}
+
+/**
+ * Offline / fallback parser. Handles multi-line orders (one product per line or
+ * comma-separated), matching each product with the deterministic matcher.
+ */
 function heuristic(message: string, products: Product[], customers: Customer[]): ParsedDraft {
-  const m     = message.toLowerCase();
-  const qty   = Number(m.match(/(\d+(?:\.\d+)?)\s*(kg|kgs|box|boxes)/)?.[1] ?? 0);
-  const uom   = /box/.test(m) ? "BOXES" : "KGS";
-  const price = Number(m.match(/(?:at|@|rm)\s*(\d+(?:\.\d+)?)/)?.[1] ?? 0);
-  const cust  = customers.find((c) => m.includes(c.name.toLowerCase()));
-  const prod  = products.find((p) =>
-    p.name.toLowerCase().split(" ").some((w) => w.length > 3 && m.includes(w)),
-  );
+  const whole = message.toLowerCase();
+
+  // Customer: a known name anywhere, else the "to <name>" target.
+  let custName =
+    customers.find((c) => whole.includes(c.name.toLowerCase()))?.name ??
+    message.match(/\bto\s+([A-Za-z0-9 &.'-]{2,40})/i)?.[1]?.trim().toUpperCase();
+  const terms = /\bcod|c\.o\.d|cash on delivery/i.test(message) ? "C.O.D." : "C.O.D.";
+
+  // Split into candidate item fragments: newlines first, then commas.
+  const fragments = message
+    .split(/\n+/)
+    .flatMap((l) => l.split(/,(?=\s*\d)/)) // split on comma only when a qty follows
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const lines: ParsedDraft["lines"] = [];
+  for (const frag of fragments) {
+    const qm = frag.match(QTY_UOM);
+    if (!qm) continue; // a line without a quantity isn't an order item
+    const pm = frag.match(PRICE);
+    // strip qty+uom and price tokens so they don't pollute product matching
+    const cleaned = frag
+      .replace(QTY_UOM, " ")
+      .replace(PRICE, " ")
+      .replace(/\bto\s+[A-Za-z0-9 &.'-]{2,40}/i, " ");
+    const match = matchProduct(cleaned, products);
+    if (!match) continue;
+    lines.push({
+      productName: match.product.name,
+      qty: Number(qm[1]),
+      uom: uomFromWord(qm[2]) ?? match.product.uom,
+      sellUnitPrice: pm ? Number(pm[1]) : 0,
+      specLines: match.product.specLines,
+    });
+  }
+
+  const allPriced = lines.length > 0 && lines.every((l) => l.sellUnitPrice > 0);
+  const matched = lines.length > 0;
   return {
-    customerName: cust?.name ?? "UNKNOWN CUSTOMER",
-    terms: "C.O.D.",
-    lines: [
-      {
-        productName: prod?.name ?? "THERMAL PAPER 48GSM 225MM",
-        qty,
-        uom: prod?.uom ?? uom,
-        sellUnitPrice: price,
-        specLines: prod?.specLines ?? [],
-      },
-    ],
-    confidence: cust && prod && qty && price ? 0.8 : 0.4,
-    notes: "Parsed offline (no ANTHROPIC_API_KEY). Please verify all fields.",
+    customerName: custName ?? "UNKNOWN CUSTOMER",
+    terms,
+    lines: matched
+      ? lines
+      : [{ productName: "UNKNOWN PRODUCT", qty: 0, uom: "BOXES", sellUnitPrice: 0, specLines: [] }],
+    confidence: custName && matched && allPriced ? 0.82 : matched ? 0.55 : 0.3,
+    notes:
+      (matched ? "" : "Could not match any product. ") +
+      (custName ? "" : "Customer not recognised. ") +
+      (matched && !allPriced ? "Some prices missing. " : "") +
+      "Parsed offline — please verify on the dashboard.",
   };
 }
 
@@ -202,15 +241,18 @@ export async function parseOrder(message: string, telegramUser?: string): Promis
     (c) => c.name.toLowerCase() === draft.customerName.toLowerCase(),
   );
   const lines: OrderLine[] = draft.lines.map((l) => {
-    const prod = products.find(
-      (p) => p.name.toLowerCase() === l.productName.toLowerCase(),
-    );
+    // Exact name match first, then the deterministic matcher (catches AI
+    // near-misses and shorthand), using the product's own spec lines as hints.
+    const exact = products.find((p) => p.name.toLowerCase() === l.productName.toLowerCase());
+    const prod =
+      exact ??
+      matchProduct(`${l.productName} ${(l.specLines ?? []).join(" ")}`, products)?.product;
     return {
       productId:   prod?.id ?? `adhoc-${l.productName.replace(/\s+/g, "-").slice(0, 20)}`,
       productName: prod?.name ?? l.productName,
       specLines:   l.specLines?.length ? l.specLines : prod?.specLines ?? [],
       qty:         l.qty,
-      uom:         l.uom ?? prod?.uom ?? "KGS",
+      uom:         l.uom ?? prod?.uom ?? "BOXES",
       sellUnitPrice: l.sellUnitPrice,
     };
   });

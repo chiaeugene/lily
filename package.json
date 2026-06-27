@@ -12,6 +12,9 @@
     "start": "next start -p ${PORT:-3000}",
     "lint": "next lint",
     "test:cascade": "tsx scripts/test-cascade.ts",
+    "test:parse": "tsx scripts/test-parse.ts",
+    "test:parse:e2e": "tsx scripts/test-parse-e2e.ts",
+    "load:catalog": "tsx scripts/load-catalog.ts",
     "render:samples": "tsx scripts/render-samples.ts"
   },
   "dependencies": {

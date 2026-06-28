@@ -19,6 +19,9 @@ const MESSAGES = [
 5 boxes coreless thermal 57x38x12 at 54.50`,
   "68 boxes coreless 57x38x12 to KF Advisor @54.50 cod",
   "20 boxes 80x80 thermal, 15 boxes 5740 to Goodwill",
+  // Malaysian rojak (Mandarin + English code-switching)
+  "帮我下单, cocktail tissue 2ply， 300盒给 KF Marketing, 卖他一盒5块钱",
+  "热敏纸 48gsm 225mm, 100公斤 给 KF Advisor, 一公斤8块",
 ];
 
 async function main() {

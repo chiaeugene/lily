@@ -20,6 +20,18 @@ const SYNONYMS: [RegExp, string][] = [
   [/THERMA?L?\b/g, "THERMAL"],
   [/REGISTERS?/g, "REGISTER"],
   [/PRINTED|PRINTING/g, "PRINTED"],
+  // Mandarin product terms (Malaysian rojak) → English, applied before non-Latin
+  // characters are stripped out below.
+  [/热敏纸|感热纸|热感纸/g, " THERMAL PAPER ROLL "],
+  [/无芯/g, " CORELESS "],
+  [/收银纸|收据纸/g, " CASH REGISTER ROLL "],
+  [/鸡尾酒/g, " COCKTAIL "],
+  [/午餐/g, " LUNCHEON "],
+  [/晚餐/g, " DINNER "],
+  [/餐巾纸|餐巾/g, " NAPKIN "],
+  [/大卷纸|卷筒纸|卷纸/g, " JUMBO ROLL TISSUE "],
+  [/双层|二层|2层/g, " 2PLY "],
+  [/单层|一层|1层/g, " 1PLY "],
 ];
 
 // Significant family keywords (single words) we score on.

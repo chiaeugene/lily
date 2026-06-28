@@ -144,16 +144,22 @@ async function callClaude(
 
 // ── 3. Offline heuristic fallback ─────────────────────────────────────────────
 
-const QTY_UOM = /(\d+(?:\.\d+)?)\s*(kgs?|boxes?|box|ctns?|ctn|rolls?|pkts?|packs?|units?|pcs?)\b/i;
+// Latin + Malaysian-Chinese units. 盒/箱 = box, 公斤/千克 = kg, 卷/条 = roll.
+const QTY_UOM = /(\d+(?:\.\d+)?)\s*(kgs?|boxes?|box|ctns?|ctn|rolls?|pkts?|packs?|units?|pcs?|盒|箱|公斤|千克|卷|条|包|件)/i;
+// Price: "@8" / "at 8" / "rm 8" / "8块" / "8令吉" / "8元".
 const PRICE = /(?:@|at|rm|price[:\s]*)\s*(\d+(?:\.\d+)?)/i;
+const CN_PRICE = /(\d+(?:\.\d+)?)\s*(?:块钱?|令吉|元|蚊)/;
+// Customer target: English "to X" or Mandarin 给/卖给 X (X = a Latin business name).
+const CN_CUST = /(?:卖给|给)\s*([A-Za-z0-9 &.'-]{2,40})/;
+const EN_CUST = /\bto\s+([A-Za-z0-9 &.'-]{2,40})/i;
 
 function uomFromWord(w?: string): string | undefined {
   if (!w) return undefined;
   const s = w.toLowerCase();
-  if (s.startsWith("kg")) return "KGS";
-  if (s.startsWith("box")) return "BOXES";
+  if (s.startsWith("kg") || w === "公斤" || w === "千克") return "KGS";
+  if (s.startsWith("box") || w === "盒" || w === "箱") return "BOXES";
   if (s.startsWith("ctn")) return "CTN";
-  if (s.startsWith("roll")) return "ROLLS";
+  if (s.startsWith("roll") || w === "卷" || w === "条") return "ROLLS";
   return undefined;
 }
 
@@ -164,29 +170,37 @@ function uomFromWord(w?: string): string | undefined {
 function heuristic(message: string, products: Product[], customers: Customer[]): ParsedDraft {
   const whole = message.toLowerCase();
 
-  // Customer: a known name anywhere, else the "to <name>" target.
-  let custName =
+  // Customer: a known name anywhere, else the "to/给/卖给 <name>" target.
+  const custName =
     customers.find((c) => whole.includes(c.name.toLowerCase()))?.name ??
-    message.match(/\bto\s+([A-Za-z0-9 &.'-]{2,40})/i)?.[1]?.trim().toUpperCase();
-  const terms = /\bcod|c\.o\.d|cash on delivery/i.test(message) ? "C.O.D." : "C.O.D.";
+    (message.match(CN_CUST)?.[1] ?? message.match(EN_CUST)?.[1])?.trim().toUpperCase();
+  const terms = "C.O.D.";
 
-  // Split into candidate item fragments: newlines first, then commas.
-  const fragments = message
-    .split(/\n+/)
-    .flatMap((l) => l.split(/,(?=\s*\d)/)) // split on comma only when a qty follows
-    .map((s) => s.trim())
-    .filter(Boolean);
+  // Split into candidate item fragments: newlines first, then commas. But a
+  // single-item order is kept whole (so the product and its quantity stay
+  // together even when separated by a comma/clause, e.g. "热敏纸 225mm, 100公斤").
+  const qtyCount = (message.match(new RegExp(QTY_UOM.source, "gi")) || []).length;
+  const fragments =
+    qtyCount <= 1
+      ? [message]
+      : message
+          .split(/\n+/)
+          .flatMap((l) => l.split(/,(?=\s*\d)/)) // split on comma only when a qty follows
+          .map((s) => s.trim())
+          .filter(Boolean);
 
   const lines: ParsedDraft["lines"] = [];
   for (const frag of fragments) {
     const qm = frag.match(QTY_UOM);
     if (!qm) continue; // a line without a quantity isn't an order item
-    const pm = frag.match(PRICE);
-    // strip qty+uom and price tokens so they don't pollute product matching
+    const pm = frag.match(PRICE) ?? frag.match(CN_PRICE);
+    // strip qty+uom, price and customer tokens so they don't pollute product matching
     const cleaned = frag
       .replace(QTY_UOM, " ")
       .replace(PRICE, " ")
-      .replace(/\bto\s+[A-Za-z0-9 &.'-]{2,40}/i, " ");
+      .replace(CN_PRICE, " ")
+      .replace(CN_CUST, " ")
+      .replace(EN_CUST, " ");
     const match = matchProduct(cleaned, products);
     if (!match) continue;
     lines.push({

@@ -4,7 +4,7 @@
 // All methods are async so both backends share the same call-site signature.
 
 import { store } from "./store";
-import { buildCascade } from "./cascade";
+import { buildCascade, buildSingleInvoice } from "./cascade";
 import { formatInvoiceNo } from "./invoiceNumber";
 import { COMPANIES, CHAIN } from "./companies";
 import { getSupabaseAdmin } from "./supabase";
@@ -306,20 +306,30 @@ export const repo = {
     }
   },
 
-  async verifyOrder(orderId: string, actor = "admin"): Promise<Transaction | undefined> {
+  async verifyOrder(
+    orderId: string,
+    actor = "admin",
+    opts: { mode?: "cascade" | "single"; company?: CompanyKey } = {},
+  ): Promise<Transaction | undefined> {
+    const { mode = "cascade", company } = opts;
+    const isSingle = mode === "single" && !!company;
+
     if (isDemoMode) {
       const order = store.orders.find((o) => o.id === orderId);
       if (!order) return undefined;
       const txId = `TX-${Date.now().toString(36).toUpperCase()}`;
-      const tx = buildCascade(order, {
+      const buildOpts = {
         transactionId: txId,
         orderId: order.id,
         marginRules: store.marginRules,
-        allocateInvoiceNo: (company: CompanyKey) => {
-          store.counters[company] += 1;
-          return formatInvoiceNo(company, store.counters[company]);
+        allocateInvoiceNo: (co: CompanyKey) => {
+          store.counters[co] += 1;
+          return formatInvoiceNo(co, store.counters[co]);
         },
-      });
+      };
+      const tx = isSingle
+        ? buildSingleInvoice(order, company!, buildOpts)
+        : buildCascade(order, buildOpts);
       order.status = "verified";
       store.transactions.unshift(tx);
       memLog(
@@ -345,26 +355,30 @@ export const repo = {
       value: Number(r.value),
     }));
 
-    // fetch and increment all counters atomically enough for a single-tenant system
+    // fetch and increment counters (only the companies actually needed)
+    const companiesNeeded = isSingle ? [company!] : CHAIN;
     const counterMap: Record<string, number> = {};
-    for (const company of CHAIN) {
+    for (const co of companiesNeeded) {
       const { data: cRow } = await db
         .from("invoice_counters")
         .select("seq")
-        .eq("company", company)
+        .eq("company", co)
         .single();
       const newSeq = (cRow?.seq ?? 0) + 1;
-      await db.from("invoice_counters").update({ seq: newSeq }).eq("company", company);
-      counterMap[company] = newSeq;
+      await db.from("invoice_counters").update({ seq: newSeq }).eq("company", co);
+      counterMap[co] = newSeq;
     }
 
     const txId = `TX-${Date.now().toString(36).toUpperCase()}`;
-    const tx = buildCascade(order, {
+    const buildOpts = {
       transactionId: txId,
       orderId: order.id,
       marginRules,
-      allocateInvoiceNo: (company: CompanyKey) => formatInvoiceNo(company, counterMap[company]),
-    });
+      allocateInvoiceNo: (co: CompanyKey) => formatInvoiceNo(co, counterMap[co]),
+    };
+    const tx = isSingle
+      ? buildSingleInvoice(order, company!, buildOpts)
+      : buildCascade(order, buildOpts);
 
     // save transaction
     await db.from("transactions").insert({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { repo } from "@/lib/repo";
+import type { CompanyKey } from "@/lib/types";
 
 // POST = apply any edits made during verification, then build the 3-invoice cascade.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -8,6 +9,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!order) return NextResponse.json({ error: "order not found" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
+  const verifyMode = (body.mode === "single" ? "single" : "cascade") as "cascade" | "single";
+  const verifyCompany = (body.company ?? undefined) as CompanyKey | undefined;
   const updates: { customerName?: string; date?: string; lines?: typeof order.lines } = {};
 
   if (typeof body.customerName === "string" && body.customerName.trim()) {
@@ -33,7 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await repo.patchOrder(id, updates);
   }
 
-  const tx = await repo.verifyOrder(id);
+  const tx = await repo.verifyOrder(id, "admin", { mode: verifyMode, company: verifyCompany });
   if (!tx) return NextResponse.json({ error: "could not generate" }, { status: 500 });
   return NextResponse.json({ transactionId: tx.id });
 }

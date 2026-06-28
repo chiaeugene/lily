@@ -147,3 +147,61 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
     createdAt: new Date().toISOString(),
   };
 }
+
+/**
+ * Build a single invoice for one chosen company, billing the end customer at
+ * the order's sell price (no margin back-calculation). Used when the operator
+ * only needs one invoice rather than the full cascade.
+ */
+export function buildSingleInvoice(
+  order: Order,
+  company: CompanyKey,
+  opts: BuildOptions,
+): Transaction {
+  const c = COMPANIES[company];
+  let subtotal = 0;
+  const lines: InvoiceLine[] = order.lines.map((ol, i) => {
+    const disc = ol.disc ?? 0;
+    const total = round2(ol.qty * ol.sellUnitPrice - disc);
+    subtotal += total;
+    return {
+      item: i + 1,
+      description: ol.productName,
+      specLines: ol.specLines,
+      qty: ol.qty,
+      uom: ol.uom,
+      unitPrice: ol.sellUnitPrice,
+      disc,
+      total,
+    };
+  });
+  const totals = finalize(company, round2(subtotal));
+  const invoiceNo = opts.allocateInvoiceNo(company);
+  const invoice: Invoice = {
+    id: `${opts.transactionId}-${company}`,
+    company,
+    invoiceNo,
+    doNo: doNoFromInvoiceNo(invoiceNo, c.invoicePrefix),
+    yourRef: "",
+    toName: order.customerName,
+    toAddressLines: order.customerAddressLines,
+    toTel: order.customerTel,
+    terms: order.terms,
+    date: order.date,
+    lines,
+    subtotal: totals.subtotal,
+    roundingAdj: totals.roundingAdj,
+    finalTotal: totals.finalTotal,
+    amountInWords: ringgitInWords(totals.finalTotal),
+  };
+  return {
+    id: opts.transactionId,
+    orderId: opts.orderId,
+    customerName: order.customerName,
+    date: order.date,
+    invoices: [invoice],
+    grandTotalSell: invoice.finalTotal,
+    marginCaptured: 0,
+    createdAt: new Date().toISOString(),
+  };
+}

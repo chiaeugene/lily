@@ -2,13 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Order } from "@/lib/types";
+import type { Order, CompanyKey } from "@/lib/types";
+
+const COMPANY_LABELS: Record<CompanyKey, string> = {
+  tien_ngai: "Tien Ngai Machinery",
+  prim: "Prim Paper Trading",
+  "3c": "3C Industries",
+};
 
 export default function PendingOrder({ order }: { order: Order }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"" | "verify" | "reject">("");
   const [lines, setLines] = useState(order.lines);
   const [customerName, setCustomerName] = useState(order.customerName);
+  const [mode, setMode] = useState<"cascade" | "single">("cascade");
+  const [singleCompany, setSingleCompany] = useState<CompanyKey>("3c");
 
   const conf = Math.round((order.parseConfidence ?? 0) * 100);
   const confTone = conf >= 85 ? "text-profit" : conf >= 60 ? "text-amber-600" : "text-loss";
@@ -18,7 +26,12 @@ export default function PendingOrder({ order }: { order: Order }) {
     const res = await fetch(`/api/orders/${order.id}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ customerName, lines }),
+      body: JSON.stringify({
+        customerName,
+        lines,
+        mode,
+        company: mode === "single" ? singleCompany : undefined,
+      }),
     });
     const data = await res.json();
     if (data.transactionId) router.push(`/transaction/${data.transactionId}`);
@@ -97,13 +110,52 @@ export default function PendingOrder({ order }: { order: Order }) {
         </tbody>
       </table>
 
+      {/* Mode picker */}
+      <div className="mt-4 border border-line rounded-lg p-3 bg-slate-50 space-y-2">
+        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Generate</p>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name={`mode-${order.id}`}
+            checked={mode === "cascade"}
+            onChange={() => setMode("cascade")}
+            className="accent-brand"
+          />
+          <span className="text-sm text-ink">Full cascade — 3 invoices (Tien Ngai → Prim → 3C)</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name={`mode-${order.id}`}
+            checked={mode === "single"}
+            onChange={() => setMode("single")}
+            className="accent-brand"
+          />
+          <span className="text-sm text-ink">Single invoice —</span>
+          <select
+            value={singleCompany}
+            onChange={(e) => { setMode("single"); setSingleCompany(e.target.value as CompanyKey); }}
+            className="text-sm border border-line rounded px-2 py-0.5 bg-white"
+          >
+            {(Object.keys(COMPANY_LABELS) as CompanyKey[]).map((k) => (
+              <option key={k} value={k}>{COMPANY_LABELS[k]}</option>
+            ))}
+          </select>
+          <span className="text-xs text-slate-400">at sell price, no margin math</span>
+        </label>
+      </div>
+
       <div className="flex gap-2 mt-3">
         <button
           onClick={verify}
           disabled={!!busy}
           className="bg-profit text-white text-sm font-medium rounded-lg px-4 py-2 hover:brightness-95 disabled:opacity-50"
         >
-          {busy === "verify" ? "Generating…" : "✓ Verify & Generate 3 Invoices"}
+          {busy === "verify"
+            ? "Generating…"
+            : mode === "single"
+              ? `✓ Verify & Generate 1 Invoice (${COMPANY_LABELS[singleCompany]})`
+              : "✓ Verify & Generate 3 Invoices"}
         </button>
         <button
           onClick={reject}

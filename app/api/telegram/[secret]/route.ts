@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseOrder } from "@/lib/parseOrder";
+import { transcribeVoice } from "@/lib/transcribe";
 import { repo } from "@/lib/repo";
 import { fmt2 } from "@/lib/money";
 
@@ -35,8 +36,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
   const msg    = update?.message;
   const chatId = msg?.chat?.id;
   const userId = String(msg?.from?.id ?? "");
-  const text: string = msg?.text ?? "";
-  if (!chatId || !text) return NextResponse.json({ ok: true });
+  let text: string = msg?.text ?? "";
+  const voice = msg?.voice ?? msg?.audio; // Telegram voice note (or forwarded audio)
+  if (!chatId || (!text && !voice)) return NextResponse.json({ ok: true });
 
   // Authorisation — OPEN by default so anyone in the order group can submit.
   // Set TELEGRAM_ALLOWED_USER_IDS later to lock down to specific Telegram IDs.
@@ -72,7 +74,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
     return NextResponse.json({ ok: true });
   }
 
+  // Voice note → transcribe to text (Groq Whisper), then parse like any order.
+  let fromVoice = false;
+  if (!text && voice?.file_id) {
+    const transcript = await transcribeVoice(voice.file_id);
+    if (!transcript) {
+      if (!isGroup) {
+        await reply(
+          chatId,
+          "🎙 Sorry, I couldn't read that voice message. Please type the order, or record it again clearly.",
+        );
+      }
+      return NextResponse.json({ ok: true });
+    }
+    text = transcript;
+    fromVoice = true;
+  }
+
   const order = await parseOrder(text, msg?.from?.username || userId);
+  if (fromVoice) order.rawMessage = `🎙 (voice) ${text}`;
 
   // Anti-chatter guard: only queue when a real catalog product actually matched.
   // In a group this keeps everyday conversation from creating bogus orders;

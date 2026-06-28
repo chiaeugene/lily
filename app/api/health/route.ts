@@ -13,8 +13,12 @@ export async function GET() {
   return NextResponse.json({
     env: process.env.NODE_ENV,
     parsing: {
-      anthropicKey: !!process.env.ANTHROPIC_API_KEY, // ← the one you're asking about
+      anthropicKey: !!process.env.ANTHROPIC_API_KEY,
       parserModel: process.env.CLAUDE_PARSER_MODEL || "claude-haiku-4-5-20251001 (default)",
+    },
+    voice: {
+      groqKey: !!process.env.GROQ_API_KEY, // transcribes Telegram voice notes
+      sttModel: process.env.GROQ_STT_MODEL || "whisper-large-v3 (default)",
     },
     telegram: {
       botToken: !!process.env.TELEGRAM_BOT_TOKEN,

@@ -13,10 +13,11 @@ const COMPANY_LABELS: Record<CompanyKey, string> = {
   prim: "Prim Paper Trading",
   "3c": "3C Industries",
 };
-function billsTo(company: CompanyKey, customerName: string): string {
-  const idx = CHAIN.indexOf(company);
-  if (idx === CHAIN.length - 1) return customerName;
-  return COMPANY_LABELS[CHAIN[idx + 1]];
+function billsTo(company: CompanyKey, customerName: string, selected: Set<CompanyKey>): string {
+  const active = CHAIN.filter((c) => selected.has(c));
+  const myIdx = active.indexOf(company);
+  const next = active[myIdx + 1];
+  return next ? COMPANY_LABELS[next] : customerName;
 }
 
 export default function PendingList({ orders }: { orders: Order[] }) {
@@ -225,7 +226,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
                   <span className={`text-sm leading-tight ${selected.has(company) ? "text-ink" : "text-muted line-through"}`}>
                     <span className="font-medium">{COMPANY_LABELS[company]}</span>
                     <span className="text-faint font-normal">
-                      {" · bills "}{billsTo(company, customerName)}
+                      {" · bills "}{billsTo(company, customerName, selected)}
                     </span>
                   </span>
                   {idx < CHAIN.length - 1 && (

@@ -99,19 +99,21 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
   const customerFinalTotal = finalize(customerFacing, chainSubtotal(customerFacing)).finalTotal;
   const originFinalTotal   = finalize(origin,         chainSubtotal(origin)).finalTotal;
 
-  // 3. Who each company bills: the next company up the chain, except the
-  //    customer-facing company, which bills the end customer.
+  // 3. Determine which companies are actually being generated (CHAIN order).
+  const toGenerate = opts.companies && opts.companies.length > 0 ? opts.companies : CHAIN;
+
+  // 4. Who each company bills: the next *selected* company, or the end customer
+  //    if this company is the last selected one. This lets TNM or Prim bill the
+  //    customer directly when they are the last (or only) selected company.
   function billTo(company: CompanyKey) {
-    const idx = CHAIN.indexOf(company);
-    if (idx === lastIdx) {
+    const myIdx = toGenerate.indexOf(company);
+    const nextSelected = toGenerate[myIdx + 1];
+    if (!nextSelected) {
       return { name: order.customerName, addr: order.customerAddressLines, tel: order.customerTel };
     }
-    const buyer = COMPANIES[CHAIN[idx + 1]];
+    const buyer = COMPANIES[nextSelected];
     return { name: buyer.name, addr: buyer.addressLines, tel: buyer.tel };
   }
-
-  // 4. Build invoices only for the requested companies (CHAIN order preserved).
-  const toGenerate = opts.companies && opts.companies.length > 0 ? opts.companies : CHAIN;
   const invoices: Invoice[] = CHAIN.filter((c) => toGenerate.includes(c)).map((company) => {
     const c = COMPANIES[company];
     const priceMap = priceByCompany[company];

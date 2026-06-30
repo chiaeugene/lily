@@ -2,10 +2,22 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Order } from "@/lib/types";
+import type { Order, CompanyKey } from "@/lib/types";
 import { ConfidencePill } from "@/components/ui";
 import { IconChevron, IconCheck, IconX, IconSparkle } from "@/components/icons";
 import { fmt2 } from "@/lib/money";
+
+const CHAIN: CompanyKey[] = ["tien_ngai", "prim", "3c"];
+const COMPANY_LABELS: Record<CompanyKey, string> = {
+  tien_ngai: "Tien Ngai Machinery",
+  prim: "Prim Paper Trading",
+  "3c": "3C Industries",
+};
+function billsTo(company: CompanyKey, customerName: string): string {
+  const idx = CHAIN.indexOf(company);
+  if (idx === CHAIN.length - 1) return customerName;
+  return COMPANY_LABELS[CHAIN[idx + 1]];
+}
 
 export default function PendingList({ orders }: { orders: Order[] }) {
   const [open, setOpen] = useState<Order | null>(null);
@@ -68,6 +80,16 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   const [date, setDate] = useState(order.date);
   const [lines, setLines] = useState(order.lines);
   const [ackIssues, setAckIssues] = useState(false);
+  const [selected, setSelected] = useState<Set<CompanyKey>>(new Set(CHAIN));
+
+  function toggleCompany(company: CompanyKey) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(company) && next.size > 1) next.delete(company);
+      else next.add(company);
+      return next;
+    });
+  }
 
   function patch(i: number, p: Partial<(typeof lines)[number]>) {
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...p } : l)));
@@ -87,10 +109,11 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   async function verify() {
     if (blocked) return;
     setBusy("verify");
+    const companies = CHAIN.filter((c) => selected.has(c));
     const res = await fetch(`/api/orders/${order.id}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ customerName, date, lines }),
+      body: JSON.stringify({ customerName, date, lines, companies }),
     });
     const data = await res.json();
     if (data.transactionId) {
@@ -186,6 +209,34 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
               </div>
             ))}
           </div>
+
+          {/* Invoice selector */}
+          <div className="rounded-lg border border-line bg-canvas p-3.5">
+            <p className="text-[11px] uppercase tracking-wide text-faint mb-2">Generate invoices for</p>
+            <div className="space-y-2">
+              {CHAIN.map((company, idx) => (
+                <label key={company} className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(company)}
+                    onChange={() => toggleCompany(company)}
+                    className="accent-primary w-4 h-4 flex-shrink-0"
+                  />
+                  <span className={`text-sm leading-tight ${selected.has(company) ? "text-ink" : "text-muted line-through"}`}>
+                    <span className="font-medium">{COMPANY_LABELS[company]}</span>
+                    <span className="text-faint font-normal">
+                      {" · bills "}{billsTo(company, customerName)}
+                    </span>
+                  </span>
+                  {idx < CHAIN.length - 1 && (
+                    <span className="ml-auto text-[11px] text-faint">
+                      {selected.has(company) ? "cost back-calc'd" : "skipped"}
+                    </span>
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
 
         {issues.length > 0 && (
@@ -215,7 +266,11 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
             className="flex-1 inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-lg px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <IconCheck size={17} />
-            {busy === "verify" ? "Generating…" : "Verify & Generate 3 Invoices"}
+            {busy === "verify"
+              ? "Generating…"
+              : selected.size === CHAIN.length
+                ? "Verify & Generate 3 Invoices"
+                : `Verify & Generate ${selected.size} Invoice${selected.size > 1 ? "s" : ""}`}
           </button>
           <button
             onClick={reject}

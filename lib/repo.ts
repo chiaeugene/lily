@@ -4,7 +4,7 @@
 // All methods are async so both backends share the same call-site signature.
 
 import { store } from "./store";
-import { buildCascade, buildSingleInvoice } from "./cascade";
+import { buildCascade } from "./cascade";
 import { formatInvoiceNo } from "./invoiceNumber";
 import { COMPANIES, CHAIN } from "./companies";
 import { getSupabaseAdmin } from "./supabase";
@@ -309,10 +309,10 @@ export const repo = {
   async verifyOrder(
     orderId: string,
     actor = "admin",
-    opts: { mode?: "cascade" | "single"; company?: CompanyKey } = {},
+    opts: { companies?: CompanyKey[] } = {},
   ): Promise<Transaction | undefined> {
-    const { mode = "cascade", company } = opts;
-    const isSingle = mode === "single" && !!company;
+    const { companies } = opts;
+    const toGenerate = companies && companies.length > 0 ? companies : CHAIN;
 
     if (isDemoMode) {
       const order = store.orders.find((o) => o.id === orderId);
@@ -322,14 +322,13 @@ export const repo = {
         transactionId: txId,
         orderId: order.id,
         marginRules: store.marginRules,
+        companies: toGenerate,
         allocateInvoiceNo: (co: CompanyKey) => {
           store.counters[co] += 1;
           return formatInvoiceNo(co, store.counters[co]);
         },
       };
-      const tx = isSingle
-        ? buildSingleInvoice(order, company!, buildOpts)
-        : buildCascade(order, buildOpts);
+      const tx = buildCascade(order, buildOpts);
       order.status = "verified";
       store.transactions.unshift(tx);
       memLog(
@@ -355,10 +354,9 @@ export const repo = {
       value: Number(r.value),
     }));
 
-    // fetch and increment counters (only the companies actually needed)
-    const companiesNeeded = isSingle ? [company!] : CHAIN;
+    // Only increment counters for companies being generated.
     const counterMap: Record<string, number> = {};
-    for (const co of companiesNeeded) {
+    for (const co of toGenerate) {
       const { data: cRow } = await db
         .from("invoice_counters")
         .select("seq")
@@ -370,15 +368,13 @@ export const repo = {
     }
 
     const txId = `TX-${Date.now().toString(36).toUpperCase()}`;
-    const buildOpts = {
+    const tx = buildCascade(order, {
       transactionId: txId,
       orderId: order.id,
       marginRules,
+      companies: toGenerate,
       allocateInvoiceNo: (co: CompanyKey) => formatInvoiceNo(co, counterMap[co]),
-    };
-    const tx = isSingle
-      ? buildSingleInvoice(order, company!, buildOpts)
-      : buildCascade(order, buildOpts);
+    });
 
     // save transaction
     await db.from("transactions").insert({

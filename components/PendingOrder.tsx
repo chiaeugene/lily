@@ -4,50 +4,71 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Order, CompanyKey } from "@/lib/types";
 
+// Chain order — must match lib/companies.ts CHAIN
+const CHAIN: CompanyKey[] = ["tien_ngai", "prim", "3c"];
+
 const COMPANY_LABELS: Record<CompanyKey, string> = {
   tien_ngai: "Tien Ngai Machinery",
   prim: "Prim Paper Trading",
   "3c": "3C Industries",
 };
 
+// Who each company naturally bills (next in chain; 3C bills the customer)
+function billsTo(company: CompanyKey, customerName: string): string {
+  const idx = CHAIN.indexOf(company);
+  if (idx === CHAIN.length - 1) return customerName;
+  return COMPANY_LABELS[CHAIN[idx + 1]];
+}
+
 export default function PendingOrder({ order }: { order: Order }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"" | "verify" | "reject">("");
   const [lines, setLines] = useState(order.lines);
   const [customerName, setCustomerName] = useState(order.customerName);
-  const [mode, setMode] = useState<"cascade" | "single">("cascade");
-  const [singleCompany, setSingleCompany] = useState<CompanyKey>("3c");
+  // All 3 checked by default
+  const [selected, setSelected] = useState<Set<CompanyKey>>(new Set(CHAIN));
 
   const conf = Math.round((order.parseConfidence ?? 0) * 100);
   const confTone = conf >= 85 ? "text-profit" : conf >= 60 ? "text-amber-600" : "text-loss";
 
+  function toggle(company: CompanyKey) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(company)) {
+        // keep at least one checked
+        if (next.size > 1) next.delete(company);
+      } else {
+        next.add(company);
+      }
+      return next;
+    });
+  }
+
   async function verify() {
     setBusy("verify");
+    const companies = CHAIN.filter((c) => selected.has(c));
     const res = await fetch(`/api/orders/${order.id}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        customerName,
-        lines,
-        mode,
-        company: mode === "single" ? singleCompany : undefined,
-      }),
+      body: JSON.stringify({ customerName, lines, companies }),
     });
     const data = await res.json();
     if (data.transactionId) router.push(`/transaction/${data.transactionId}`);
     else router.refresh();
   }
+
   async function reject() {
     setBusy("reject");
-    await fetch(`/api/orders/${order.id}/verify`, {
-      method: "DELETE",
-    });
+    await fetch(`/api/orders/${order.id}/verify`, { method: "DELETE" });
     router.refresh();
   }
 
   function patchLine(i: number, patch: Partial<(typeof lines)[number]>) {
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
   }
+
+  const selectedCount = selected.size;
+  const allSelected = selectedCount === CHAIN.length;
 
   return (
     <div className="border border-line rounded-lg p-4">
@@ -69,7 +90,7 @@ export default function PendingOrder({ order }: { order: Order }) {
 
       {order.rawMessage && (
         <div className="mt-2 text-xs bg-slate-50 rounded px-3 py-2 text-slate-600 italic">
-          “{order.rawMessage}”
+          "{order.rawMessage}"
         </div>
       )}
       {order.parseNotes && <div className="mt-1.5 text-xs text-amber-600">⚠ {order.parseNotes}</div>}
@@ -110,39 +131,37 @@ export default function PendingOrder({ order }: { order: Order }) {
         </tbody>
       </table>
 
-      {/* Mode picker */}
-      <div className="mt-4 border border-line rounded-lg p-3 bg-slate-50 space-y-2">
-        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Generate</p>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="radio"
-            name={`mode-${order.id}`}
-            checked={mode === "cascade"}
-            onChange={() => setMode("cascade")}
-            className="accent-brand"
-          />
-          <span className="text-sm text-ink">Full cascade — 3 invoices (Tien Ngai → Prim → 3C)</span>
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="radio"
-            name={`mode-${order.id}`}
-            checked={mode === "single"}
-            onChange={() => setMode("single")}
-            className="accent-brand"
-          />
-          <span className="text-sm text-ink">Single invoice —</span>
-          <select
-            value={singleCompany}
-            onChange={(e) => { setMode("single"); setSingleCompany(e.target.value as CompanyKey); }}
-            className="text-sm border border-line rounded px-2 py-0.5 bg-white"
-          >
-            {(Object.keys(COMPANY_LABELS) as CompanyKey[]).map((k) => (
-              <option key={k} value={k}>{COMPANY_LABELS[k]}</option>
-            ))}
-          </select>
-          <span className="text-xs text-slate-400">at sell price, no margin math</span>
-        </label>
+      {/* Invoice selector */}
+      <div className="mt-4 border border-line rounded-lg p-3 bg-slate-50">
+        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+          Generate invoices for
+        </p>
+        <div className="space-y-1.5">
+          {CHAIN.map((company, idx) => (
+            <label key={company} className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.has(company)}
+                onChange={() => toggle(company)}
+                className="accent-brand w-4 h-4 flex-shrink-0"
+              />
+              <span className={`text-sm ${selected.has(company) ? "text-ink" : "text-slate-400 line-through"}`}>
+                <span className="font-medium">{COMPANY_LABELS[company]}</span>
+                <span className="text-slate-400 font-normal">
+                  {" "}→ bills{" "}
+                  <span className={selected.has(company) ? "text-slate-600" : ""}>
+                    {billsTo(company, customerName)}
+                  </span>
+                </span>
+              </span>
+              {idx < CHAIN.length - 1 && (
+                <span className="text-xs text-slate-300 ml-auto">
+                  {selected.has(company) ? "cost back-calc'd" : "skipped"}
+                </span>
+              )}
+            </label>
+          ))}
+        </div>
       </div>
 
       <div className="flex gap-2 mt-3">
@@ -153,9 +172,9 @@ export default function PendingOrder({ order }: { order: Order }) {
         >
           {busy === "verify"
             ? "Generating…"
-            : mode === "single"
-              ? `✓ Verify & Generate 1 Invoice (${COMPANY_LABELS[singleCompany]})`
-              : "✓ Verify & Generate 3 Invoices"}
+            : allSelected
+              ? "✓ Verify & Generate 3 Invoices"
+              : `✓ Verify & Generate ${selectedCount} Invoice${selectedCount > 1 ? "s" : ""}`}
         </button>
         <button
           onClick={reject}

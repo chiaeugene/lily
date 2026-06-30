@@ -28,6 +28,10 @@ export interface BuildOptions {
   marginRules: MarginRule[];
   transactionId: string;
   orderId: string;
+  /** Which companies to actually generate invoices for. Defaults to all CHAIN members.
+   *  Prices are always back-calculated for the full chain first so margin analytics
+   *  remain correct even when only a subset of invoices is generated. */
+  companies?: CompanyKey[];
 }
 
 function ruleFor(rules: MarginRule[], productId: string, company: CompanyKey) {
@@ -51,10 +55,12 @@ function doNoFromInvoiceNo(invoiceNo: string, prefix: string): string {
 }
 
 /**
- * Build the cascade invoices from one verified order. Fully driven by CHAIN
- * (origin -> ... -> customer-facing). The customer-facing company (last in
- * CHAIN) sells to the customer at the order's sell price; each company upstream
- * is derived by subtracting the buyer's margin.
+ * Build cascade invoices from one verified order. Fully driven by CHAIN
+ * (origin -> ... -> customer-facing). Prices are always derived for every
+ * company in the chain (so margin analytics stay correct), but only invoices
+ * for the companies listed in opts.companies are generated and saved.
+ * Bill-to is always the natural next link in the chain (last company bills
+ * the end customer). omitting opts.companies generates all 3.
  */
 export function buildCascade(order: Order, opts: BuildOptions): Transaction {
   const { marginRules, allocateInvoiceNo } = opts;
@@ -80,7 +86,20 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
     }
   }
 
-  // 2. Who each company bills: the next company up the chain, except the
+  // 2. Compute grandTotalSell / marginCaptured from full chain (always, regardless
+  //    of which invoices are generated so analytics are never skewed).
+  function chainSubtotal(company: CompanyKey) {
+    return round2(
+      order.lines.reduce((sum, ol) => {
+        const unitPrice = priceByCompany[company].get(ol.productId)!;
+        return sum + round2(ol.qty * unitPrice - (ol.disc ?? 0));
+      }, 0),
+    );
+  }
+  const customerFinalTotal = finalize(customerFacing, chainSubtotal(customerFacing)).finalTotal;
+  const originFinalTotal   = finalize(origin,         chainSubtotal(origin)).finalTotal;
+
+  // 3. Who each company bills: the next company up the chain, except the
   //    customer-facing company, which bills the end customer.
   function billTo(company: CompanyKey) {
     const idx = CHAIN.indexOf(company);
@@ -91,8 +110,9 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
     return { name: buyer.name, addr: buyer.addressLines, tel: buyer.tel };
   }
 
-  // 3. Build one invoice per company (kept in CHAIN order: origin first).
-  const invoices: Invoice[] = CHAIN.map((company) => {
+  // 4. Build invoices only for the requested companies (CHAIN order preserved).
+  const toGenerate = opts.companies && opts.companies.length > 0 ? opts.companies : CHAIN;
+  const invoices: Invoice[] = CHAIN.filter((c) => toGenerate.includes(c)).map((company) => {
     const c = COMPANIES[company];
     const priceMap = priceByCompany[company];
     let subtotal = 0;
@@ -134,74 +154,14 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
     };
   });
 
-  const customerInv = invoices.find((i) => i.company === customerFacing)!;
-  const originInv = invoices.find((i) => i.company === origin)!;
   return {
     id: opts.transactionId,
     orderId: opts.orderId,
     customerName: order.customerName,
     date: order.date,
     invoices,
-    grandTotalSell: customerInv.finalTotal,
-    marginCaptured: round2(customerInv.finalTotal - originInv.finalTotal),
-    createdAt: new Date().toISOString(),
-  };
-}
-
-/**
- * Build a single invoice for one chosen company, billing the end customer at
- * the order's sell price (no margin back-calculation). Used when the operator
- * only needs one invoice rather than the full cascade.
- */
-export function buildSingleInvoice(
-  order: Order,
-  company: CompanyKey,
-  opts: BuildOptions,
-): Transaction {
-  const c = COMPANIES[company];
-  let subtotal = 0;
-  const lines: InvoiceLine[] = order.lines.map((ol, i) => {
-    const disc = ol.disc ?? 0;
-    const total = round2(ol.qty * ol.sellUnitPrice - disc);
-    subtotal += total;
-    return {
-      item: i + 1,
-      description: ol.productName,
-      specLines: ol.specLines,
-      qty: ol.qty,
-      uom: ol.uom,
-      unitPrice: ol.sellUnitPrice,
-      disc,
-      total,
-    };
-  });
-  const totals = finalize(company, round2(subtotal));
-  const invoiceNo = opts.allocateInvoiceNo(company);
-  const invoice: Invoice = {
-    id: `${opts.transactionId}-${company}`,
-    company,
-    invoiceNo,
-    doNo: doNoFromInvoiceNo(invoiceNo, c.invoicePrefix),
-    yourRef: "",
-    toName: order.customerName,
-    toAddressLines: order.customerAddressLines,
-    toTel: order.customerTel,
-    terms: order.terms,
-    date: order.date,
-    lines,
-    subtotal: totals.subtotal,
-    roundingAdj: totals.roundingAdj,
-    finalTotal: totals.finalTotal,
-    amountInWords: ringgitInWords(totals.finalTotal),
-  };
-  return {
-    id: opts.transactionId,
-    orderId: opts.orderId,
-    customerName: order.customerName,
-    date: order.date,
-    invoices: [invoice],
-    grandTotalSell: invoice.finalTotal,
-    marginCaptured: 0,
+    grandTotalSell: customerFinalTotal,
+    marginCaptured: round2(customerFinalTotal - originFinalTotal),
     createdAt: new Date().toISOString(),
   };
 }

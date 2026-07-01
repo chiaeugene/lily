@@ -64,31 +64,40 @@ function doNoFromInvoiceNo(invoiceNo: string, prefix: string): string {
  */
 export function buildCascade(order: Order, opts: BuildOptions): Transaction {
   const { marginRules, allocateInvoiceNo } = opts;
-  const lastIdx = CHAIN.length - 1;
-  const customerFacing = CHAIN[lastIdx];
-  const origin = CHAIN[0];
 
-  // 1. Selling unit price for every company, per line, walked down the chain.
-  //    priceByCompany[company].get(productId) = unit price that company charges its buyer.
+  // Which companies are actually being generated (CHAIN order preserved).
+  const toGenerate = opts.companies && opts.companies.length > 0 ? opts.companies : CHAIN;
+  const lastSelected  = toGenerate[toGenerate.length - 1];
+  const firstSelected = toGenerate[0];
+
+  // 1. Price walk — starts from the LAST SELECTED company at the entered sell
+  //    price and back-calculates upstream through selected companies only.
+  //
+  //    1 selected  → that company bills at sell price (no back-calc)
+  //    2 selected  → last at sell price, first one margin subtracted
+  //    3 selected  → full cascade (same behaviour as before)
+  //
+  //    This ensures the customer always pays exactly what was entered, and only
+  //    the tiers actually involved in the deal share the margin.
   const priceByCompany: Record<CompanyKey, Map<string, number>> = {
     prim: new Map(),
     "3c": new Map(),
     tien_ngai: new Map(),
   };
   for (const ol of order.lines) {
-    priceByCompany[customerFacing].set(ol.productId, ol.sellUnitPrice);
-    for (let i = lastIdx; i > 0; i--) {
-      const buyer = CHAIN[i];
-      const seller = CHAIN[i - 1];
-      const buyerPrice = priceByCompany[buyer].get(ol.productId)!;
+    priceByCompany[lastSelected].set(ol.productId, ol.sellUnitPrice);
+    for (let i = toGenerate.length - 1; i > 0; i--) {
+      const buyer  = toGenerate[i];
+      const seller = toGenerate[i - 1];
+      const buyerPrice  = priceByCompany[buyer].get(ol.productId)!;
       const sellerPrice = deriveUpstreamPrice(buyerPrice, ruleFor(marginRules, ol.productId, buyer));
       priceByCompany[seller].set(ol.productId, sellerPrice);
     }
   }
 
-  // 2. Compute grandTotalSell / marginCaptured from full chain (always, regardless
-  //    of which invoices are generated so analytics are never skewed).
-  function chainSubtotal(company: CompanyKey) {
+  // 2. grandTotalSell = what the customer pays (last selected company's total).
+  //    marginCaptured = spread between the last and first selected company's totals.
+  function selectedSubtotal(company: CompanyKey) {
     return round2(
       order.lines.reduce((sum, ol) => {
         const unitPrice = priceByCompany[company].get(ol.productId)!;
@@ -96,11 +105,8 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
       }, 0),
     );
   }
-  const customerFinalTotal = finalize(customerFacing, chainSubtotal(customerFacing)).finalTotal;
-  const originFinalTotal   = finalize(origin,         chainSubtotal(origin)).finalTotal;
-
-  // 3. Determine which companies are actually being generated (CHAIN order).
-  const toGenerate = opts.companies && opts.companies.length > 0 ? opts.companies : CHAIN;
+  const lastFinalTotal  = finalize(lastSelected,  selectedSubtotal(lastSelected)).finalTotal;
+  const firstFinalTotal = finalize(firstSelected, selectedSubtotal(firstSelected)).finalTotal;
 
   // 4. Who each company bills: the next *selected* company, or the end customer
   //    if this company is the last selected one. This lets TNM or Prim bill the
@@ -162,8 +168,8 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
     customerName: order.customerName,
     date: order.date,
     invoices,
-    grandTotalSell: customerFinalTotal,
-    marginCaptured: round2(customerFinalTotal - originFinalTotal),
+    grandTotalSell: lastFinalTotal,
+    marginCaptured: round2(lastFinalTotal - firstFinalTotal),
     createdAt: new Date().toISOString(),
   };
 }

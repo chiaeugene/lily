@@ -120,7 +120,8 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
     const buyer = COMPANIES[nextSelected];
     return { name: buyer.name, addr: buyer.addressLines, tel: buyer.tel };
   }
-  const invoices: Invoice[] = CHAIN.filter((c) => toGenerate.includes(c)).map((company) => {
+  // Build invoices in tick order (toGenerate preserves the user's selection order).
+  const invoices: Invoice[] = toGenerate.map((company) => {
     const c = COMPANIES[company];
     const priceMap = priceByCompany[company];
     let subtotal = 0;

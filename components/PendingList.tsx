@@ -13,10 +13,9 @@ const COMPANY_LABELS: Record<CompanyKey, string> = {
   prim: "Prim Paper Trading",
   "3c": "3C Industries",
 };
-function billsTo(company: CompanyKey, customerName: string, selected: Set<CompanyKey>): string {
-  const active = CHAIN.filter((c) => selected.has(c));
-  const myIdx = active.indexOf(company);
-  const next = active[myIdx + 1];
+function billsTo(company: CompanyKey, customerName: string, selected: CompanyKey[]): string {
+  const myIdx = selected.indexOf(company);
+  const next = selected[myIdx + 1];
   return next ? COMPANY_LABELS[next] : customerName;
 }
 
@@ -81,14 +80,17 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   const [date, setDate] = useState(order.date);
   const [lines, setLines] = useState(order.lines);
   const [ackIssues, setAckIssues] = useState(false);
-  const [selected, setSelected] = useState<Set<CompanyKey>>(new Set(CHAIN));
+  // Ordered array — tick order = billing sequence.
+  const [selected, setSelected] = useState<CompanyKey[]>([...CHAIN]);
 
   function toggleCompany(company: CompanyKey) {
     setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(company) && next.size > 1) next.delete(company);
-      else next.add(company);
-      return next;
+      if (prev.includes(company)) {
+        // keep at least one ticked
+        if (prev.length === 1) return prev;
+        return prev.filter((c) => c !== company);
+      }
+      return [...prev, company];
     });
   }
 
@@ -110,7 +112,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   async function verify() {
     if (blocked) return;
     setBusy("verify");
-    const companies = CHAIN.filter((c) => selected.has(c));
+    const companies = selected; // already in tick order
     const res = await fetch(`/api/orders/${order.id}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -215,27 +217,36 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
           <div className="rounded-lg border border-line bg-canvas p-3.5">
             <p className="text-[11px] uppercase tracking-wide text-faint mb-2">Generate invoices for</p>
             <div className="space-y-2">
-              {CHAIN.map((company, idx) => (
-                <label key={company} className="flex items-center gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(company)}
-                    onChange={() => toggleCompany(company)}
-                    className="accent-primary w-4 h-4 flex-shrink-0"
-                  />
-                  <span className={`text-sm leading-tight ${selected.has(company) ? "text-ink" : "text-muted line-through"}`}>
-                    <span className="font-medium">{COMPANY_LABELS[company]}</span>
-                    <span className="text-faint font-normal">
-                      {" · bills "}{billsTo(company, customerName, selected)}
+              {CHAIN.map((company) => {
+                const seqNo = selected.indexOf(company); // -1 if not selected
+                const isSelected = seqNo !== -1;
+                return (
+                  <label key={company} className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleCompany(company)}
+                      className="accent-primary w-4 h-4 flex-shrink-0"
+                    />
+                    {/* Sequence badge */}
+                    <span className={`flex-shrink-0 w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center
+                      ${isSelected ? "bg-primary text-white" : "bg-line text-faint"}`}>
+                      {isSelected ? seqNo + 1 : "·"}
                     </span>
-                  </span>
-                  {idx < CHAIN.length - 1 && (
-                    <span className="ml-auto text-[11px] text-faint">
-                      {selected.has(company) ? "cost back-calc'd" : "skipped"}
+                    <span className={`text-sm leading-tight ${isSelected ? "text-ink" : "text-muted line-through"}`}>
+                      <span className="font-medium">{COMPANY_LABELS[company]}</span>
+                      {isSelected && (
+                        <span className="text-faint font-normal">
+                          {" · bills "}{billsTo(company, customerName, selected)}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </label>
-              ))}
+                    {isSelected && seqNo < selected.length - 1 && (
+                      <span className="ml-auto text-[11px] text-faint">cost back-calc'd</span>
+                    )}
+                  </label>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -269,9 +280,9 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
             <IconCheck size={17} />
             {busy === "verify"
               ? "Generating…"
-              : selected.size === CHAIN.length
+              : selected.length === CHAIN.length
                 ? "Verify & Generate 3 Invoices"
-                : `Verify & Generate ${selected.size} Invoice${selected.size > 1 ? "s" : ""}`}
+                : `Verify & Generate ${selected.length} Invoice${selected.length > 1 ? "s" : ""}`}
           </button>
           <button
             onClick={reject}

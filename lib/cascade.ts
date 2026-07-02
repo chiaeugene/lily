@@ -65,8 +65,11 @@ function doNoFromInvoiceNo(invoiceNo: string, prefix: string): string {
 export function buildCascade(order: Order, opts: BuildOptions): Transaction {
   const { marginRules, allocateInvoiceNo } = opts;
 
-  // Which companies are actually being generated (CHAIN order preserved).
-  const toGenerate = opts.companies && opts.companies.length > 0 ? opts.companies : CHAIN;
+  // Which companies are actually being generated — always in natural CHAIN order
+  // regardless of the order the user ticked them. Supply direction is fixed
+  // (TNM → Prim → 3C) so reversing it would produce invalid margin math.
+  const requested = opts.companies && opts.companies.length > 0 ? opts.companies : CHAIN;
+  const toGenerate = CHAIN.filter((c) => requested.includes(c));
   const lastSelected  = toGenerate[toGenerate.length - 1];
   const firstSelected = toGenerate[0];
 

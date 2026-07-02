@@ -13,9 +13,9 @@ const COMPANY_LABELS: Record<CompanyKey, string> = {
   prim: "Prim Paper Trading",
   "3c": "3C Industries",
 };
-function billsTo(company: CompanyKey, customerName: string, selected: CompanyKey[]): string {
-  const myIdx = selected.indexOf(company);
-  const next = selected[myIdx + 1];
+function billsTo(company: CompanyKey, customerName: string, active: CompanyKey[]): string {
+  const myIdx = active.indexOf(company);
+  const next = active[myIdx + 1];
   return next ? COMPANY_LABELS[next] : customerName;
 }
 
@@ -80,19 +80,20 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   const [date, setDate] = useState(order.date);
   const [lines, setLines] = useState(order.lines);
   const [ackIssues, setAckIssues] = useState(false);
-  // Ordered array — tick order = billing sequence.
-  const [selected, setSelected] = useState<CompanyKey[]>([...CHAIN]);
+  // Set — billing order is always natural CHAIN order (supply direction is fixed).
+  const [selected, setSelected] = useState<Set<CompanyKey>>(new Set(CHAIN));
 
   function toggleCompany(company: CompanyKey) {
     setSelected((prev) => {
-      if (prev.includes(company)) {
-        // keep at least one ticked
-        if (prev.length === 1) return prev;
-        return prev.filter((c) => c !== company);
-      }
-      return [...prev, company];
+      if (prev.has(company) && prev.size === 1) return prev; // keep at least one
+      const next = new Set(prev);
+      next.has(company) ? next.delete(company) : next.add(company);
+      return next;
     });
   }
+
+  // Natural-order active list (used for billing labels and API payload).
+  const active = CHAIN.filter((c) => selected.has(c));
 
   function patch(i: number, p: Partial<(typeof lines)[number]>) {
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...p } : l)));
@@ -112,7 +113,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   async function verify() {
     if (blocked) return;
     setBusy("verify");
-    const companies = selected; // already in tick order
+    const companies = active; // always natural CHAIN order
     const res = await fetch(`/api/orders/${order.id}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -218,7 +219,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
             <p className="text-[11px] uppercase tracking-wide text-faint mb-2">Generate invoices for</p>
             <div className="space-y-2">
               {CHAIN.map((company) => {
-                const seqNo = selected.indexOf(company); // -1 if not selected
+                const seqNo = active.indexOf(company); // -1 if not selected
                 const isSelected = seqNo !== -1;
                 return (
                   <label key={company} className="flex items-center gap-2.5 cursor-pointer">
@@ -228,7 +229,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
                       onChange={() => toggleCompany(company)}
                       className="accent-primary w-4 h-4 flex-shrink-0"
                     />
-                    {/* Sequence badge */}
+                    {/* Sequence badge — natural chain position among selected */}
                     <span className={`flex-shrink-0 w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center
                       ${isSelected ? "bg-primary text-white" : "bg-line text-faint"}`}>
                       {isSelected ? seqNo + 1 : "·"}
@@ -237,11 +238,11 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
                       <span className="font-medium">{COMPANY_LABELS[company]}</span>
                       {isSelected && (
                         <span className="text-faint font-normal">
-                          {" · bills "}{billsTo(company, customerName, selected)}
+                          {" · bills "}{billsTo(company, customerName, active)}
                         </span>
                       )}
                     </span>
-                    {isSelected && seqNo < selected.length - 1 && (
+                    {isSelected && seqNo < active.length - 1 && (
                       <span className="ml-auto text-[11px] text-faint">cost back-calc'd</span>
                     )}
                   </label>
@@ -280,9 +281,9 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
             <IconCheck size={17} />
             {busy === "verify"
               ? "Generating…"
-              : selected.length === CHAIN.length
+              : active.length === CHAIN.length
                 ? "Verify & Generate 3 Invoices"
-                : `Verify & Generate ${selected.length} Invoice${selected.length > 1 ? "s" : ""}`}
+                : `Verify & Generate ${active.length} Invoice${active.length > 1 ? "s" : ""}`}
           </button>
           <button
             onClick={reject}

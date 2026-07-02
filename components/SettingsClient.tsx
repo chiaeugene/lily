@@ -51,24 +51,35 @@ export default function SettingsClient({
     });
   }
 
+  // Layer depth = position from the customer end (1 = customer-facing, 2 = middle…)
+  // Margins belong to the LAYER, not the company. Whichever company sits in that
+  // position in a given transaction uses this rate.
+  function layerLabelFor(c: Company) {
+    const idxInChain = companies.findIndex((x) => x.key === c.key); // 0=origin, last=customer-facing
+    const depth = last - idxInChain; // 1=customer-facing, 2=middle, …
+    const depthLabel = depth === 1 ? "Layer 1 — customer-facing" : `Layer ${depth} — inner`;
+    return depthLabel;
+  }
   function subtitleFor(c: Company) {
     const idx = companies.findIndex((x) => x.key === c.key);
-    return idx === last ? "margin on sale to the customer" : `margin on sale to ${SHORT[companies[idx + 1].key]}`;
+    const note = idx === last ? "applied when billing the customer" : `applied when billing ${SHORT[companies[idx + 1].key]}`;
+    return `${note} · applies to whichever company is in this layer`;
   }
 
   return (
     <div className="space-y-6">
       <Card title="Pricing & margins">
         <p className="text-[13px] text-muted -mt-1 mb-4">
-          Set how much each company earns per product. You enter only the {SHORT[companies[last].key]} sell price
-          (to the customer) on an order; Lily derives every upstream price from these margins.
+          Margins are <strong>positional</strong> — they belong to the layer, not the company.
+          Whichever company occupies that layer in a transaction uses that rate.
+          You enter only the customer sell price; Lily derives every upstream price from these margins.
         </p>
 
         <div className="grid lg:grid-cols-2 gap-5">
           {marginCompanies.map((c) => (
             <MarginCompany
               key={c.key}
-              title={c.name}
+              title={layerLabelFor(c)}
               subtitle={subtitleFor(c)}
               accent={ACCENT[c.key]}
               products={products}

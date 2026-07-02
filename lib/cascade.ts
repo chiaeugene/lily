@@ -92,8 +92,15 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
     for (let i = toGenerate.length - 1; i > 0; i--) {
       const buyer  = toGenerate[i];
       const seller = toGenerate[i - 1];
-      const buyerPrice  = priceByCompany[buyer].get(ol.productId)!;
-      const sellerPrice = deriveUpstreamPrice(buyerPrice, ruleFor(marginRules, ol.productId, buyer));
+      const buyerPrice = priceByCompany[buyer].get(ol.productId)!;
+      // Look up margin by LAYER DEPTH (position from the customer end), not by
+      // which company happens to occupy that slot. Depth 1 = customer-facing
+      // layer (normally 3C), depth 2 = middle layer (normally Prim), etc.
+      // This means if Prim bills the customer directly it gets the depth-1
+      // (customer-facing) rate, not its own depth-2 rate.
+      const depth = toGenerate.length - i;          // 1 = last, 2 = second-to-last…
+      const layerKey = CHAIN[CHAIN.length - depth]; // standard company at that depth
+      const sellerPrice = deriveUpstreamPrice(buyerPrice, ruleFor(marginRules, ol.productId, layerKey));
       priceByCompany[seller].set(ol.productId, sellerPrice);
     }
   }

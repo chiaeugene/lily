@@ -14,7 +14,7 @@
 // Seeded into Supabase via scripts/load-catalog.ts and into the demo store.
 // IDs are the stable SKU key (margin rules + parser) — never renumber.
 
-import type { Product, MarginRule, CompanyKey } from "./types";
+import type { Product, MarginRule } from "./types";
 
 export const SEED_PRODUCTS: Product[] = [
   // ── Tissue — napkins (by BOXES) ──────────────────────────────────────────────
@@ -61,22 +61,20 @@ export const SEED_PRODUCTS: Product[] = [
 ];
 
 // ── Margin rules ─────────────────────────────────────────────────────────────
-// Margins are taken by the non-origin companies (prim, 3c); Tien Ngai = origin.
-// Real anchors kept verbatim; everything else gets a 5%/tier default (matches
-// the ~5% per tier implied by the anchor prices). Operator edits in Settings.
+// Layer 1 = customer-facing margin (outermost). Layer 2 = inner/middle margin.
+// Real anchors kept verbatim; everything else gets a 5% default per layer.
 const REAL_RULES: MarginRule[] = [
-  { productId: "tp-48-225", tier: "3c",   type: "rm_per_unit", value: 0.4 },
-  { productId: "tp-48-225", tier: "prim", type: "rm_per_unit", value: 0.4 },
-  { productId: "coreless-57-38-12", tier: "3c",   type: "rm_per_unit", value: 3.0 },
-  { productId: "coreless-57-38-12", tier: "prim", type: "rm_per_unit", value: 3.0 },
+  { productId: "tp-48-225",        layer: 1, type: "rm_per_unit", value: 0.4 },
+  { productId: "tp-48-225",        layer: 2, type: "rm_per_unit", value: 0.4 },
+  { productId: "coreless-57-38-12", layer: 1, type: "rm_per_unit", value: 3.0 },
+  { productId: "coreless-57-38-12", layer: 2, type: "rm_per_unit", value: 3.0 },
 ];
 
-const MARGIN_TIERS: CompanyKey[] = ["prim", "3c"];
 const DEFAULT_PERCENT = 5;
 
 export const SEED_MARGIN_RULES: MarginRule[] = SEED_PRODUCTS.flatMap((p) =>
-  MARGIN_TIERS.map((tier) => {
-    const real = REAL_RULES.find((r) => r.productId === p.id && r.tier === tier);
-    return real ?? { productId: p.id, tier, type: "percent" as const, value: DEFAULT_PERCENT };
+  [1, 2].map((layer) => {
+    const real = REAL_RULES.find((r) => r.productId === p.id && r.layer === layer);
+    return real ?? { productId: p.id, layer, type: "percent" as const, value: DEFAULT_PERCENT };
   }),
 );

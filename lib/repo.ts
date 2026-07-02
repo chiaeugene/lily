@@ -24,6 +24,15 @@ import type {
 
 export const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
+// DB `tier` column stores "1", "2" (layer numbers). Legacy rows store company
+// names ("3c", "prim") — map those transparently so no DB migration is needed.
+function tierToLayer(tier: string): number {
+  const n = Number(tier);
+  if (!isNaN(n) && n > 0) return n;
+  const legacy: Record<string, number> = { "3c": 1, prim: 2, tien_ngai: 3 };
+  return legacy[tier] ?? 1;
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -208,7 +217,7 @@ export const repo = {
     const { data } = await getSupabaseAdmin().from("margin_rules").select("*");
     return (data ?? []).map((r) => ({
       productId: r.product_id,
-      tier: r.tier as CompanyKey,
+      layer: tierToLayer(r.tier),
       type: r.type as "rm_per_unit" | "percent",
       value: Number(r.value),
     }));
@@ -224,19 +233,19 @@ export const repo = {
   async upsertMarginRule(rule: MarginRule): Promise<void> {
     if (isDemoMode) {
       const i = store.marginRules.findIndex(
-        (r) => r.productId === rule.productId && r.tier === rule.tier,
+        (r) => r.productId === rule.productId && r.layer === rule.layer,
       );
       if (i >= 0) store.marginRules[i] = rule;
       else store.marginRules.push(rule);
     } else {
       await getSupabaseAdmin().from("margin_rules").upsert({
         product_id: rule.productId,
-        tier: rule.tier,
+        tier: String(rule.layer), // stored as "1", "2" in DB
         type: rule.type,
         value: rule.value,
       });
     }
-    await log("admin", "margin.update", `${rule.productId}/${rule.tier} -> ${rule.value} ${rule.type}`);
+    await log("admin", "margin.update", `${rule.productId}/layer${rule.layer} -> ${rule.value} ${rule.type}`);
   },
 
   // ── orders ────────────────────────────────────────────────────────────────
@@ -349,7 +358,7 @@ export const repo = {
     const { data: marginRows } = await db.from("margin_rules").select("*");
     const marginRules: MarginRule[] = (marginRows ?? []).map((r) => ({
       productId: r.product_id,
-      tier: r.tier as CompanyKey,
+      layer: tierToLayer(r.tier),
       type: r.type as "rm_per_unit" | "percent",
       value: Number(r.value),
     }));

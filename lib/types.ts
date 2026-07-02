@@ -56,7 +56,9 @@ export type MarginType = "rm_per_unit" | "percent";
  */
 export interface MarginRule {
   productId: string;
-  tier: CompanyKey; // the company earning this margin
+  /** Layer position from the customer end: 1 = customer-facing, 2 = middle, …
+   *  Margins belong to the layer, not to any specific company. */
+  layer: number;
   type: MarginType;
   value: number; // RM/unit, or percent markup-on-cost (e.g. 5 = 5%)
 }

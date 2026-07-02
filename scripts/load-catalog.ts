@@ -32,11 +32,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Margin rules — upsert by (product_id, tier). FK requires the product to exist,
-  // which it now does after the products upsert above.
+  // Margin rules — upsert by (product_id, tier). Tier stores layer number as string ("1","2").
   const ruleRows = SEED_MARGIN_RULES.map((r) => ({
     product_id: r.productId,
-    tier: r.tier,
+    tier: String(r.layer),
     type: r.type,
     value: r.value,
   }));

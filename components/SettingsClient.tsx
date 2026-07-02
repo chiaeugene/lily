@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Company, CompanyKey, Product, MarginRule, MarginType } from "@/lib/types";
+import type { Company, Product, MarginRule, MarginType } from "@/lib/types";
 import { Card } from "@/components/ui";
 import { IconCheck, IconPencil } from "@/components/icons";
 import { deriveUpstreamPrice } from "@/lib/cascade";
@@ -32,18 +32,22 @@ export default function SettingsClient({
   rules: MarginRule[];
 }) {
   const [rules, setRules] = useState(initialRules);
-  const last = companies.length - 1;
   const origin = companies[0];
-  // companies that take a margin = everything except the origin, shown customer-facing first
-  const marginCompanies = companies.slice(1).reverse();
 
-  function rule(productId: string, tier: CompanyKey) {
-    return rules.find((r) => r.productId === productId && r.tier === tier);
+  // Margins are POSITIONAL — layer 1 = customer-facing, layer 2 = inner/middle.
+  // Whichever company sits in that slot for a given transaction uses that rate.
+  const LAYERS = [
+    { layer: 1, label: "Layer 1 — customer-facing", sub: "Applied by whichever company bills the customer directly" },
+    { layer: 2, label: "Layer 2 — inner / middle",  sub: "Applied by whichever company is one step back from the customer" },
+  ];
+
+  function rule(productId: string, layer: number) {
+    return rules.find((r) => r.productId === productId && r.layer === layer);
   }
-  async function saveRule(productId: string, tier: CompanyKey, patch: Partial<MarginRule>) {
-    const current = rule(productId, tier) ?? { productId, tier, type: "rm_per_unit" as MarginType, value: 0 };
+  async function saveRule(productId: string, layer: number, patch: Partial<MarginRule>) {
+    const current = rule(productId, layer) ?? { productId, layer, type: "rm_per_unit" as MarginType, value: 0 };
     const next = { ...current, ...patch } as MarginRule;
-    setRules((rs) => [...rs.filter((r) => !(r.productId === productId && r.tier === tier)), next]);
+    setRules((rs) => [...rs.filter((r) => !(r.productId === productId && r.layer === layer)), next]);
     await fetch("/api/margins", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -51,39 +55,23 @@ export default function SettingsClient({
     });
   }
 
-  // Layer depth = position from the customer end (1 = customer-facing, 2 = middle…)
-  // Margins belong to the LAYER, not the company. Whichever company sits in that
-  // position in a given transaction uses this rate.
-  function layerLabelFor(c: Company) {
-    const idxInChain = companies.findIndex((x) => x.key === c.key); // 0=origin, last=customer-facing
-    const depth = last - idxInChain; // 1=customer-facing, 2=middle, …
-    const depthLabel = depth === 1 ? "Layer 1 — customer-facing" : `Layer ${depth} — inner`;
-    return depthLabel;
-  }
-  function subtitleFor(c: Company) {
-    const idx = companies.findIndex((x) => x.key === c.key);
-    const note = idx === last ? "applied when billing the customer" : `applied when billing ${SHORT[companies[idx + 1].key]}`;
-    return `${note} · applies to whichever company is in this layer`;
-  }
-
   return (
     <div className="space-y-6">
       <Card title="Pricing & margins">
         <p className="text-[13px] text-muted -mt-1 mb-4">
-          Margins are <strong>positional</strong> — they belong to the layer, not the company.
-          Whichever company occupies that layer in a transaction uses that rate.
-          You enter only the customer sell price; Lily derives every upstream price from these margins.
+          Margins are <strong>positional</strong> — they belong to the layer, not any specific company.
+          You enter only the customer sell price; Lily back-calculates every upstream price using these layers.
         </p>
 
         <div className="grid lg:grid-cols-2 gap-5">
-          {marginCompanies.map((c) => (
+          {LAYERS.map(({ layer, label, sub }) => (
             <MarginCompany
-              key={c.key}
-              title={layerLabelFor(c)}
-              subtitle={subtitleFor(c)}
-              accent={ACCENT[c.key]}
+              key={layer}
+              title={label}
+              subtitle={sub}
+              accent={layer === 1 ? "bg-violet-50 text-violet-700 ring-violet-200" : "bg-amber-50 text-amber-700 ring-amber-200"}
               products={products}
-              tier={c.key}
+              layer={layer}
               getRule={rule}
               onSave={saveRule}
             />
@@ -114,7 +102,7 @@ function MarginCompany({
   subtitle,
   accent,
   products,
-  tier,
+  layer,
   getRule,
   onSave,
 }: {
@@ -122,9 +110,9 @@ function MarginCompany({
   subtitle: string;
   accent: string;
   products: Product[];
-  tier: CompanyKey;
-  getRule: (p: string, t: CompanyKey) => MarginRule | undefined;
-  onSave: (p: string, t: CompanyKey, patch: Partial<MarginRule>) => void;
+  layer: number;
+  getRule: (p: string, l: number) => MarginRule | undefined;
+  onSave: (p: string, l: number, patch: Partial<MarginRule>) => void;
 }) {
   return (
     <div className="rounded-xl border border-line overflow-hidden">
@@ -137,7 +125,7 @@ function MarginCompany({
       <table className="w-full text-sm">
         <tbody>
           {products.map((p) => {
-            const r = getRule(p.id, tier);
+            const r = getRule(p.id, layer);
             const type = r?.type ?? "rm_per_unit";
             const value = r?.value ?? 0;
             return (
@@ -153,12 +141,12 @@ function MarginCompany({
                       type="number"
                       step="0.01"
                       defaultValue={value}
-                      onBlur={(e) => onSave(p.id, tier, { value: Number(e.target.value), type })}
+                      onBlur={(e) => onSave(p.id, layer, { value: Number(e.target.value), type })}
                       className="w-20 border border-line rounded-lg px-2 py-1.5 text-sm tnum text-right focus:border-primary"
                     />
                     <select
                       value={type}
-                      onChange={(e) => onSave(p.id, tier, { type: e.target.value as MarginType, value })}
+                      onChange={(e) => onSave(p.id, layer, { type: e.target.value as MarginType, value })}
                       className="border border-line rounded-lg px-1.5 py-1.5 text-[12px] focus:border-primary"
                     >
                       <option value="rm_per_unit">RM</option>
@@ -182,17 +170,18 @@ function CascadePreview({
 }: {
   companies: Company[];
   products: Product[];
-  getRule: (p: string, t: CompanyKey) => MarginRule | undefined;
+  getRule: (p: string, l: number) => MarginRule | undefined;
 }) {
   const [pid, setPid] = useState(products[0]?.id ?? "");
   const [sell, setSell] = useState(8);
   const last = companies.length - 1;
 
-  // selling price per company, walked down the chain from the customer-facing price
+  // selling price per company, walked back from customer-facing price using layer margins
   const price: Record<string, number> = {};
   price[companies[last].key] = sell;
   for (let i = last; i > 0; i--) {
-    price[companies[i - 1].key] = deriveUpstreamPrice(price[companies[i].key], getRule(pid, companies[i].key));
+    const depth = last - i + 1; // depth 1 = customer-facing (companies[last]), 2 = next up, …
+    price[companies[i - 1].key] = deriveUpstreamPrice(price[companies[i].key], getRule(pid, depth));
   }
   const rows = companies.map((c, i) => ({
     who: `${SHORT[c.key]} → ${i < last ? SHORT[companies[i + 1].key] : "Customer"}`,

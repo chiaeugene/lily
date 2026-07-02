@@ -34,10 +34,10 @@ export interface BuildOptions {
   companies?: CompanyKey[];
 }
 
-function ruleFor(rules: MarginRule[], productId: string, company: CompanyKey) {
+function ruleFor(rules: MarginRule[], productId: string, layer: number) {
   return (
-    rules.find((r) => r.productId === productId && r.tier === company) ??
-    rules.find((r) => r.productId === "*" && r.tier === company)
+    rules.find((r) => r.productId === productId && r.layer === layer) ??
+    rules.find((r) => r.productId === "*" && r.layer === layer)
   );
 }
 
@@ -93,14 +93,10 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
       const buyer  = toGenerate[i];
       const seller = toGenerate[i - 1];
       const buyerPrice = priceByCompany[buyer].get(ol.productId)!;
-      // Look up margin by LAYER DEPTH (position from the customer end), not by
-      // which company happens to occupy that slot. Depth 1 = customer-facing
-      // layer (normally 3C), depth 2 = middle layer (normally Prim), etc.
-      // This means if Prim bills the customer directly it gets the depth-1
-      // (customer-facing) rate, not its own depth-2 rate.
-      const depth = toGenerate.length - i;          // 1 = last, 2 = second-to-last…
-      const layerKey = CHAIN[CHAIN.length - depth]; // standard company at that depth
-      const sellerPrice = deriveUpstreamPrice(buyerPrice, ruleFor(marginRules, ol.productId, layerKey));
+      // Margin is layer-based: depth 1 = customer-facing, 2 = middle, etc.
+      // Whichever company sits in that slot uses the rate for that layer.
+      const depth = toGenerate.length - i; // 1 = last selected, 2 = second-to-last…
+      const sellerPrice = deriveUpstreamPrice(buyerPrice, ruleFor(marginRules, ol.productId, depth));
       priceByCompany[seller].set(ol.productId, sellerPrice);
     }
   }

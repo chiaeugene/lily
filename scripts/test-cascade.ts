@@ -26,8 +26,8 @@ const order: Order = {
 
 // Chain: Tien Ngai (origin) -> Prim -> 3C (sells to customer). Margins taken by 3C and Prim.
 const rules: MarginRule[] = [
-  { productId: "tp-48-225", tier: "3c", type: "rm_per_unit", value: 0.4 },
-  { productId: "tp-48-225", tier: "prim", type: "rm_per_unit", value: 0.4 },
+  { productId: "tp-48-225", layer: 1, type: "rm_per_unit", value: 0.4 },
+  { productId: "tp-48-225", layer: 2, type: "rm_per_unit", value: 0.4 },
 ];
 
 let counters: Record<CompanyKey, number> = { tien_ngai: 187880, "3c": 7, prim: 4 };

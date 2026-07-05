@@ -12,11 +12,13 @@ import {
   IconArchive,
   IconSettings,
   IconQuote,
+  IconBox,
 } from "@/components/icons";
 
 const NAV = [
   { href: "/dashboard",  label: "Dashboard",     Icon: IconDashboard },
   { href: "/quotation",  label: "Quotation",      Icon: IconQuote },
+  { href: "/po",         label: "Purchase Orders", Icon: IconBox },
   { href: "/search",     label: "Search",         Icon: IconSearch },
   { href: "/analysis",   label: "Sales Analysis", Icon: IconChart },
   { href: "/records",    label: "Records",        Icon: IconArchive },

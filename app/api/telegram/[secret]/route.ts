@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseOrder } from "@/lib/parseOrder";
+import { parsePo } from "@/lib/parsePo";
 import { transcribeVoice } from "@/lib/transcribe";
 import { repo } from "@/lib/repo";
 import { fmt2 } from "@/lib/money";
+import { todayDDMMYYYY } from "@/lib/store";
+import type { Order } from "@/lib/types";
+
+// Keyword-based intent detection, checked at the start of the message so
+// everyday chatter in a group doesn't get misread as a document request.
+const QUOTE_PREFIX = /^\s*(quote|quotation)\b[:\s]*/i;
+const PO_PREFIX = /^\s*(po|purchase\s*order)\b[:\s]*/i;
 
 // Telegram webhook. Set it with:
 //   https://api.telegram.org/bot<TOKEN>/setWebhook?url=<APP_URL>/api/telegram/<TELEGRAM_WEBHOOK_SECRET>
@@ -69,7 +77,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
   if (text.startsWith("/help")) {
     await reply(
       chatId,
-      "Just type your order, e.g.\n\"68 boxes coreless 57x38x12 to KF Advisor @54.50 cod\"\n\n/order — get a fill-in template\n/id — show your Telegram ID\n\nAfter sending, open the dashboard to verify & generate the 3 invoices.",
+      "Just type your order, e.g.\n\"68 boxes coreless 57x38x12 to KF Advisor @54.50 cod\"\n\n" +
+        "Start a message with \"quote\" to draft a customer quotation instead, e.g.\n\"quote to Daco Petsmart: 1000 rolls thermal paper 80x31 @2.00 cod\"\n\n" +
+        "Start with \"po\" to draft a supplier purchase order, e.g.\n\"po to Swan Coatings: 50 kgs FTN 110 ink @19.55\"\n\n" +
+        "/order — get a fill-in template\n/id — show your Telegram ID\n\nAfter sending, open the dashboard to verify & generate the 3 invoices.",
     );
     return NextResponse.json({ ok: true });
   }
@@ -89,6 +100,63 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
     }
     text = transcript;
     fromVoice = true;
+  }
+
+  // "quote ..." / "quotation ..." → parse as a normal order, but file it as a
+  // quotation instead of a pending order.
+  if (QUOTE_PREFIX.test(text)) {
+    const stripped = text.replace(QUOTE_PREFIX, "");
+    const draft = await parseOrder(stripped, msg?.from?.username || userId);
+    const hasLine = draft.lines.some((l) => l.qty > 0 && l.productId && !l.productId.startsWith("adhoc-"));
+    if (!hasLine) {
+      if (!isGroup) await reply(chatId, "I couldn't read a quotation from that. Try:\n\"quote to Daco Petsmart: 1000 rolls thermal paper 80x31 @2.00 cod\"");
+      return NextResponse.json({ ok: true });
+    }
+    const id = await repo.nextQuoteNo();
+    const quote: Order = { ...draft, id, source: "quotation", status: "quote" };
+    await repo.addQuotation(quote);
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const url = appUrl ? `${appUrl}/quotation/${id}` : undefined;
+    const lines = quote.lines.map((l) => `• ${l.qty} ${l.uom} ${l.productName} @ RM${fmt2(l.sellUnitPrice)}`).join("\n");
+    await reply(
+      chatId,
+      `📄 Quotation ${id} drafted for ${quote.customerName}\n${lines}${url ? "" : "\n\nOpen the dashboard to review and send it."}`,
+      url ? { text: "View quotation", url } : undefined,
+    );
+    return NextResponse.json({ ok: true });
+  }
+
+  // "po ..." / "purchase order ..." → draft a supplier purchase order.
+  if (PO_PREFIX.test(text)) {
+    const stripped = text.replace(PO_PREFIX, "");
+    const draft = await parsePo(stripped);
+    if (!draft.lines.some((l) => l.qty > 0)) {
+      if (!isGroup) await reply(chatId, "I couldn't read a purchase order from that. Try:\n\"po to Swan Coatings: 50 kgs FTN 110 ink @19.55\"");
+      return NextResponse.json({ ok: true });
+    }
+    const id = await repo.nextPoNo();
+    await repo.addPurchaseOrder({
+      id,
+      supplierName: draft.supplierName,
+      supplierAddressLines: [],
+      terms: draft.terms || "C.O.D.",
+      date: todayDDMMYYYY(),
+      deliveryDate: draft.deliveryDate || undefined,
+      lines: draft.lines,
+      status: "draft",
+      createdAt: new Date().toISOString(),
+    });
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const url = appUrl ? `${appUrl}/po/${id}` : undefined;
+    const lines = draft.lines.map((l) => `• ${l.qty} ${l.uom} ${l.description} @ RM${fmt2(l.unitPrice)}`).join("\n");
+    await reply(
+      chatId,
+      `📦 Purchase order ${id} drafted for ${draft.supplierName}\n${lines}${url ? "" : "\n\nOpen the dashboard to review and send it."}`,
+      url ? { text: "View purchase order", url } : undefined,
+    );
+    return NextResponse.json({ ok: true });
   }
 
   const order = await parseOrder(text, msg?.from?.username || userId);

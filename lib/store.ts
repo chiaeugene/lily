@@ -10,6 +10,7 @@ import type {
   Transaction,
   AuditEntry,
   CompanyKey,
+  PurchaseOrder,
 } from "./types";
 import { SEED_PRODUCTS, SEED_MARGIN_RULES } from "./catalog";
 
@@ -25,6 +26,7 @@ export interface Store {
   transactions: Transaction[];
   audit: AuditEntry[];
   counters: Record<CompanyKey, number>;
+  purchaseOrders: PurchaseOrder[];
 }
 
 function seed(): Store {
@@ -97,6 +99,7 @@ function seed(): Store {
     ],
     // start counters near the real last-seen numbers so generated nos look live
     counters: { tien_ngai: 187880, "3c": 7, prim: 4 },
+    purchaseOrders: [],
   };
 }
 

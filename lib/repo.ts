@@ -20,6 +20,8 @@ import type {
   AuditEntry,
   CompanyKey,
   Company,
+  PurchaseOrder,
+  PoLine,
 } from "./types";
 
 export const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -126,6 +128,47 @@ function orderRow(o: Order) {
     parse_confidence: o.parseConfidence ?? null,
     parse_notes: o.parseNotes ?? null,
     created_at: o.createdAt,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToPo(r: any): PurchaseOrder {
+  return {
+    id: r.id,
+    quotationId: r.quotation_id ?? undefined,
+    supplierName: r.supplier_name,
+    supplierAddressLines: r.supplier_address_lines ?? [],
+    supplierTel: r.supplier_tel ?? undefined,
+    supplierFax: r.supplier_fax ?? undefined,
+    yourRef: r.your_ref ?? undefined,
+    terms: r.terms,
+    date: r.date,
+    deliveryDate: r.delivery_date ?? undefined,
+    lines: r.lines as PoLine[],
+    status: r.status,
+    linkedOrderId: r.linked_order_id ?? undefined,
+    createdAt: r.created_at,
+    confirmedAt: r.confirmed_at ?? undefined,
+  };
+}
+
+function poRow(po: PurchaseOrder) {
+  return {
+    id: po.id,
+    quotation_id: po.quotationId ?? null,
+    supplier_name: po.supplierName,
+    supplier_address_lines: po.supplierAddressLines,
+    supplier_tel: po.supplierTel ?? null,
+    supplier_fax: po.supplierFax ?? null,
+    your_ref: po.yourRef ?? null,
+    terms: po.terms,
+    date: po.date,
+    delivery_date: po.deliveryDate ?? null,
+    lines: po.lines,
+    status: po.status,
+    linked_order_id: po.linkedOrderId ?? null,
+    created_at: po.createdAt,
+    confirmed_at: po.confirmedAt ?? null,
   };
 }
 
@@ -524,6 +567,90 @@ export const repo = {
     }
     await log("admin", "quote.accepted", `${id} -> order ${newId}`);
     return newId;
+  },
+
+  // ── purchase orders (Tien Ngai buying raw materials from a supplier) ──────
+  async nextPoNo(): Promise<string> {
+    const d = new Date();
+    const ym = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const prefix = `PO-${ym}-`;
+    let count: number;
+    if (isDemoMode) {
+      count = store.purchaseOrders.filter((p) => p.id.startsWith(prefix)).length;
+    } else {
+      const { data } = await getSupabaseAdmin()
+        .from("purchase_orders")
+        .select("id")
+        .like("id", `${prefix}%`);
+      count = data?.length ?? 0;
+    }
+    return `${prefix}${String(count + 1).padStart(3, "0")}`;
+  },
+
+  async addPurchaseOrder(po: PurchaseOrder): Promise<void> {
+    if (isDemoMode) {
+      store.purchaseOrders.unshift(po);
+    } else {
+      await getSupabaseAdmin().from("purchase_orders").insert(poRow(po));
+    }
+    await log("admin", "po.created", `${po.id} to ${po.supplierName}${po.quotationId ? ` (for ${po.quotationId})` : ""}`);
+  },
+
+  async listPurchaseOrders(): Promise<PurchaseOrder[]> {
+    if (isDemoMode) return store.purchaseOrders;
+    const { data } = await getSupabaseAdmin()
+      .from("purchase_orders")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return (data ?? []).map(rowToPo);
+  },
+
+  async getPurchaseOrder(id: string): Promise<PurchaseOrder | undefined> {
+    if (isDemoMode) return store.purchaseOrders.find((p) => p.id === id);
+    const { data } = await getSupabaseAdmin().from("purchase_orders").select("*").eq("id", id).single();
+    return data ? rowToPo(data) : undefined;
+  },
+
+  // Confirming a PO that's linked to a quotation spawns that quotation's
+  // pending sell-order (same effect as accepting the quotation directly).
+  async confirmPurchaseOrder(id: string): Promise<{ po: PurchaseOrder; orderId?: string } | undefined> {
+    const po = await this.getPurchaseOrder(id);
+    if (!po) return undefined;
+
+    let orderId: string | undefined;
+    if (po.quotationId) {
+      const quote = await this.getQuotation(po.quotationId);
+      if (quote && quote.status !== "accepted") {
+        orderId = await this.convertQuotationToOrder(po.quotationId);
+      } else if (quote) {
+        orderId = undefined; // already accepted via another path
+      }
+    }
+
+    const confirmedAt = new Date().toISOString();
+    const updated: PurchaseOrder = { ...po, status: "confirmed", confirmedAt, linkedOrderId: orderId ?? po.linkedOrderId };
+
+    if (isDemoMode) {
+      const i = store.purchaseOrders.findIndex((p) => p.id === id);
+      if (i !== -1) store.purchaseOrders[i] = updated;
+    } else {
+      await getSupabaseAdmin()
+        .from("purchase_orders")
+        .update({ status: "confirmed", confirmed_at: confirmedAt, linked_order_id: updated.linkedOrderId ?? null })
+        .eq("id", id);
+    }
+    await log("admin", "po.confirmed", `${id}${orderId ? ` -> order ${orderId}` : ""}`);
+    return { po: updated, orderId };
+  },
+
+  async cancelPurchaseOrder(id: string): Promise<void> {
+    if (isDemoMode) {
+      const p = store.purchaseOrders.find((x) => x.id === id);
+      if (p) p.status = "cancelled";
+    } else {
+      await getSupabaseAdmin().from("purchase_orders").update({ status: "cancelled" }).eq("id", id);
+    }
+    await log("admin", "po.cancelled", id);
   },
 
   // ── transactions ──────────────────────────────────────────────────────────

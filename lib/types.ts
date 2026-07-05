@@ -152,3 +152,36 @@ export interface AuditEntry {
   action: string;
   detail: string;
 }
+
+// ── Purchase orders (Tien Ngai buying raw materials from a supplier) ─────────
+// Separate from the sell-side Order/Invoice cascade: a PO has one supplier, no
+// margin chain, and (optionally) links back to the quotation that prompted it.
+// Confirming a linked PO spawns the pending sell-order for that quotation.
+
+export interface PoLine {
+  description: string;
+  uom: string;
+  qty: number;
+  unitPrice: number;
+  disc?: number;
+}
+
+export type PoStatus = "draft" | "confirmed" | "cancelled";
+
+export interface PurchaseOrder {
+  id: string; // "PO-2607-001"
+  quotationId?: string; // the quotation this procurement is for, if any
+  supplierName: string;
+  supplierAddressLines: string[];
+  supplierTel?: string;
+  supplierFax?: string;
+  yourRef?: string;
+  terms: string;
+  date: string; // dd/MM/yyyy
+  deliveryDate?: string;
+  lines: PoLine[];
+  status: PoStatus;
+  linkedOrderId?: string; // the pending sell-order spawned on confirm
+  createdAt: string;
+  confirmedAt?: string;
+}

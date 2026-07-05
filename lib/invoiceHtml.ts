@@ -20,19 +20,30 @@ function fauxQr(): string {
 /** Full standalone A4 invoice HTML for one company skin. */
 export function invoiceHtml(
   inv: Invoice,
-  opts: { voided?: boolean; docLabel?: "INVOICE" | "QUOTATION"; validUntil?: string } = {},
+  opts: {
+    voided?: boolean;
+    docLabel?: "INVOICE" | "QUOTATION" | "PURCHASE ORDER";
+    validUntil?: string;
+    deliveryDate?: string; // PO: replaces the "Our D/O No." field with "Delivery Date"
+    hideNotes?: boolean; // PO: no bank/T&C notes — TNM is the buyer here, not the seller
+    hideQr?: boolean; // PO: not a tax invoice, no LHDN QR
+    forceSignature?: boolean; // PO: always needs a signature regardless of company skin
+  } = {},
 ): string {
   const c = COMPANIES[inv.company];
   const label = opts.docLabel ?? "INVOICE";
   const isQuote = label === "QUOTATION";
-  const docWord = isQuote ? "Quotation" : "Invoice";
+  const isPo = label === "PURCHASE ORDER";
+  const docWord = isQuote ? "Quotation" : isPo ? "Purchase Order" : "Invoice";
+  const showQr = c.showQr && !opts.hideQr;
+  const showSignature = c.showAuthorisedSignature || !!opts.forceSignature;
 
   const header = `
     <div class="hdr">
       ${c.showLogo ? `<div class="logo">${esc(c.logoText ?? "")}</div>` : ""}
       ${
-        (c.showQr && !c.qrInFooter) || c.showLhdnLink
-          ? `<div class="hdr-right">${c.showQr && !c.qrInFooter ? fauxQr() : ""}${
+        (showQr && !c.qrInFooter) || c.showLhdnLink
+          ? `<div class="hdr-right">${showQr && !c.qrInFooter ? fauxQr() : ""}${
               c.showLhdnLink ? `<div class="lhdn">LHDN Validated<br/>Link</div>` : ""
             }</div>`
           : ""
@@ -69,23 +80,28 @@ export function invoiceHtml(
       <div class="totrow bold"><span>Final Total</span><span class="box">${fmt2(inv.finalTotal)}</span></div>`
     : `<div class="totrow bold"><span>Total</span><span class="box">${fmt2(inv.finalTotal)}</span></div>`;
 
-  const notes = STANDARD_NOTES.map((n, i) => {
-    if (i === 0) {
-      return `<div class="note">1.${esc(n.replace("{COMPANY}", ""))}<b>${esc(c.name)}</b></div>
+  const notes = opts.hideNotes
+    ? ""
+    : STANDARD_NOTES.map((n, i) => {
+        if (i === 0) {
+          return `<div class="note">1.${esc(n.replace("{COMPANY}", ""))}<b>${esc(c.name)}</b></div>
               <div class="note bank"><b>Account No:</b> ${c.banks
                 .map((b) => `${esc(b.bank)} - ${esc(b.account)}`)
                 .join("&nbsp;&nbsp; ")}</div>`;
-    }
-    return `<div class="note">${i + 1}.${esc(n)}</div>`;
-  }).join("");
+        }
+        return `<div class="note">${i + 1}.${esc(n)}</div>`;
+      }).join("");
 
   const footer = `
     <div class="foot">
-      ${c.showQr && c.qrInFooter ? `<div class="foot-qr">${fauxQr()}</div>` : ""}
+      ${showQr && c.qrInFooter ? `<div class="foot-qr">${fauxQr()}</div>` : ""}
       <div class="foot-co">${esc(c.name)}</div>
-      <div class="foot-line">This is a computer generated ${docWord}</div>
-      <div class="foot-line">No Signature is required</div>
-      ${c.showAuthorisedSignature ? `<div class="sig-line"></div><div class="foot-line">Authorised Signature</div>` : ""}
+      ${
+        isPo
+          ? `<div class="foot-line">E &amp; O.E</div>`
+          : `<div class="foot-line">This is a computer generated ${docWord}</div><div class="foot-line">No Signature is required</div>`
+      }
+      ${showSignature ? `<div class="sig-line"></div><div class="foot-line">Authorised Signature</div>` : ""}
     </div>`;
 
   return `<!doctype html><html><head><meta charset="utf-8"/>
@@ -169,7 +185,9 @@ export function invoiceHtml(
         ${
           isQuote
             ? `<div class="r"><span class="k">Valid Until</span><span class="colon">:</span><span>${esc(opts.validUntil ?? "")}</span></div>`
-            : `<div class="r"><span class="k">Our D/O No.</span><span class="colon">:</span><span>${esc(inv.doNo)}</span></div>`
+            : isPo
+              ? `<div class="r"><span class="k">Delivery Date</span><span class="colon">:</span><span>${esc(opts.deliveryDate ?? "")}</span></div>`
+              : `<div class="r"><span class="k">Our D/O No.</span><span class="colon">:</span><span>${esc(inv.doNo)}</span></div>`
         }
         <div class="r"><span class="k">Terms</span><span class="colon">:</span><span>${esc(inv.terms)}</span></div>
         <div class="r"><span class="k">Date</span><span class="colon">:</span><span>${esc(inv.date)}</span></div>
@@ -189,7 +207,7 @@ export function invoiceHtml(
       <div class="totals">${totalsBox}</div>
     </div>
     <div class="bottom">
-      <div class="notes"><div class="note"><b>Notes :</b></div>${notes}</div>
+      ${opts.hideNotes ? `<div class="notes"></div>` : `<div class="notes"><div class="note"><b>Notes :</b></div>${notes}</div>`}
       ${footer}
     </div>
   </div>

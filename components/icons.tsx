@@ -128,3 +128,10 @@ export const IconShare = ({ className, size }: P) => (
     <line x1="12" y1="2" x2="12" y2="15" />
   </svg>
 );
+export const IconBox = ({ className, size }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M21 8 12 3 3 8v8l9 5 9-5Z" />
+    <path d="M3 8l9 5 9-5" />
+    <path d="M12 13v8" />
+  </svg>
+);

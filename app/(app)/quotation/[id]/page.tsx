@@ -4,7 +4,7 @@ import { repo } from "@/lib/repo";
 import { PageHeader } from "@/components/ui";
 import { fmt2 } from "@/lib/money";
 import QuoteActions from "@/components/QuoteActions";
-import { IconArrowRight } from "@/components/icons";
+import { IconArrowRight, IconBox } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,7 @@ export default async function QuotationViewPage({ params }: { params: Promise<{ 
   if (!quote) notFound();
 
   const total = quote.lines.reduce((s, l) => s + l.qty * l.sellUnitPrice - (l.disc ?? 0), 0);
+  const pos = (await repo.listPurchaseOrders()).filter((p) => p.quotationId === id);
 
   return (
     <>
@@ -35,6 +36,44 @@ export default async function QuotationViewPage({ params }: { params: Promise<{ 
           )}
           <QuoteActions id={quote.id} status={quote.status} />
         </div>
+
+        {quote.status !== "accepted" && (
+          <div className="rounded-xl border border-line bg-canvas p-3.5 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-[13px] text-muted">
+              <IconBox size={16} className="text-slate-400" />
+              Need to buy materials from a supplier first? Create a purchase order — confirming it will spawn this
+              quote&apos;s order automatically.
+            </div>
+            <Link
+              href={`/po/new?quotationId=${quote.id}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white text-ink text-[13px] font-medium px-3.5 py-2 hover:bg-slate-50 shrink-0"
+            >
+              Create Purchase Order <IconArrowRight size={14} />
+            </Link>
+          </div>
+        )}
+
+        {pos.length > 0 && (
+          <div className="rounded-xl border border-line divide-y divide-line overflow-hidden">
+            {pos.map((p) => (
+              <Link key={p.id} href={`/po/${p.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+                <span className="font-mono text-[12px] text-muted">{p.id}</span>
+                <span className="text-[13px] text-ink">{p.supplierName}</span>
+                <span
+                  className={`ml-auto rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                    p.status === "confirmed"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : p.status === "cancelled"
+                        ? "bg-slate-100 text-slate-500 border-slate-200"
+                        : "bg-amber-50 text-amber-700 border-amber-200"
+                  }`}
+                >
+                  {p.status}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
 
         {/* Document preview */}
         <div className="rounded-xl border border-line shadow-card overflow-hidden bg-white">

@@ -80,20 +80,20 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   const [date, setDate] = useState(order.date);
   const [lines, setLines] = useState(order.lines);
   const [ackIssues, setAckIssues] = useState(false);
-  // Set — billing order is always natural CHAIN order (supply direction is fixed).
-  const [selected, setSelected] = useState<Set<CompanyKey>>(new Set(CHAIN));
+  // Array (not Set) — order matters: sequence is whatever order the user ticks
+  // the boxes in, first tick = top of this invoice's chain, last tick = bills
+  // the customer directly.
+  const [active, setActive] = useState<CompanyKey[]>(CHAIN);
 
   function toggleCompany(company: CompanyKey) {
-    setSelected((prev) => {
-      if (prev.has(company) && prev.size === 1) return prev; // keep at least one
-      const next = new Set(prev);
-      next.has(company) ? next.delete(company) : next.add(company);
-      return next;
+    setActive((prev) => {
+      if (prev.includes(company)) {
+        if (prev.length === 1) return prev; // keep at least one
+        return prev.filter((c) => c !== company);
+      }
+      return [...prev, company]; // newly ticked goes to the end of the sequence
     });
   }
-
-  // Natural-order active list (used for billing labels and API payload).
-  const active = CHAIN.filter((c) => selected.has(c));
 
   function patch(i: number, p: Partial<(typeof lines)[number]>) {
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...p } : l)));
@@ -113,7 +113,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   async function verify() {
     if (blocked) return;
     setBusy("verify");
-    const companies = active; // always natural CHAIN order
+    const companies = active; // tick order — first ticked is the top of the chain
     const res = await fetch(`/api/orders/${order.id}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -229,7 +229,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
                       onChange={() => toggleCompany(company)}
                       className="accent-primary w-4 h-4 flex-shrink-0"
                     />
-                    {/* Sequence badge — natural chain position among selected */}
+                    {/* Sequence badge — position in tick order, not fixed chain order */}
                     <span className={`flex-shrink-0 w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center
                       ${isSelected ? "bg-primary text-white" : "bg-line text-faint"}`}>
                       {isSelected ? seqNo + 1 : "·"}

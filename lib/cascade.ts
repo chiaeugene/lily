@@ -32,6 +32,12 @@ export interface BuildOptions {
    *  Prices are always back-calculated for the full chain first so margin analytics
    *  remain correct even when only a subset of invoices is generated. */
   companies?: CompanyKey[];
+  /** Customer's PO / reference number, printed on every generated invoice. */
+  yourRef?: string;
+  /** Manually typed invoice numbers, keyed by company. When set for a company,
+   *  allocateInvoiceNo is not called for it — the auto counter is left untouched
+   *  so the sequence doesn't skip a number for one that was hand-typed. */
+  invoiceNoOverrides?: Partial<Record<CompanyKey, string>>;
 }
 
 function ruleFor(rules: MarginRule[], productId: string, layer: number) {
@@ -51,7 +57,7 @@ function finalize(company: CompanyKey, subtotal: number) {
 }
 
 function doNoFromInvoiceNo(invoiceNo: string, prefix: string): string {
-  return "DO-" + invoiceNo.slice(prefix.length);
+  return invoiceNo.startsWith(prefix) ? "DO-" + invoiceNo.slice(prefix.length) : "DO-" + invoiceNo;
 }
 
 /**
@@ -149,14 +155,14 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
       };
     });
     const totals = finalize(company, round2(subtotal));
-    const invoiceNo = allocateInvoiceNo(company);
+    const invoiceNo = opts.invoiceNoOverrides?.[company] || allocateInvoiceNo(company);
     const to = billTo(company);
     return {
       id: `${opts.transactionId}-${company}`,
       company,
       invoiceNo,
       doNo: doNoFromInvoiceNo(invoiceNo, c.invoicePrefix),
-      yourRef: "",
+      yourRef: opts.yourRef ?? "",
       toName: to.name,
       toAddressLines: to.addr,
       toTel: to.tel,

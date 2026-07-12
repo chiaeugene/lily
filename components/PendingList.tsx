@@ -80,10 +80,25 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   const [date, setDate] = useState(order.date);
   const [lines, setLines] = useState(order.lines);
   const [ackIssues, setAckIssues] = useState(false);
+  const [yourRef, setYourRef] = useState("");
+  // Manually-typed invoice number per company — leave blank to auto-generate
+  // the next in sequence. Keyed by company so each ticked company can have
+  // its own override.
+  const [invoiceNoOverrides, setInvoiceNoOverrides] = useState<Partial<Record<CompanyKey, string>>>({});
   // Array (not Set) — order matters: sequence is whatever order the user ticks
   // the boxes in, first tick = top of this invoice's chain, last tick = bills
   // the customer directly.
   const [active, setActive] = useState<CompanyKey[]>(CHAIN);
+
+  // Detection chips reflect what the parser originally filled in — frozen from
+  // the initial order prop, not the live-edited state, so editing a field
+  // doesn't retroactively make it look "detected".
+  const customerDetected = !!order.customerName.trim() && !/^unknown customer$/i.test(order.customerName);
+  const lineDetection = order.lines.map((l) => ({
+    product: !l.productId.startsWith("adhoc-") && !/^unknown product$/i.test(l.productName),
+    qty: l.qty > 0,
+    price: l.sellUnitPrice > 0,
+  }));
 
   function toggleCompany(company: CompanyKey) {
     setActive((prev) => {
@@ -117,7 +132,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
     const res = await fetch(`/api/orders/${order.id}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ customerName, date, lines, companies }),
+      body: JSON.stringify({ customerName, date, lines, companies, yourRef, invoiceNoOverrides }),
     });
     const data = await res.json();
     if (data.transactionId) {
@@ -161,7 +176,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
-            <Field label="Customer">
+            <Field label="Customer" detected={customerDetected}>
               <input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
@@ -176,42 +191,66 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
                 className="w-full border border-line rounded-lg px-3 py-2 text-sm tnum focus:border-primary"
               />
             </Field>
+            <div className="sm:col-span-2">
+              <Field label="Your Ref (customer PO no., optional)">
+                <input
+                  value={yourRef}
+                  onChange={(e) => setYourRef(e.target.value)}
+                  placeholder="e.g. PO-2607/014"
+                  className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:border-primary"
+                />
+              </Field>
+            </div>
           </div>
 
           <div className="space-y-4">
-            {lines.map((l, i) => (
-              <div key={i} className="rounded-lg border border-line p-3.5">
-                <div className="text-sm font-medium text-ink">{l.productName}</div>
-                {l.specLines.length > 0 && (
-                  <div className="text-[12px] text-faint mt-0.5">{l.specLines.join(" · ")}</div>
-                )}
-                <div className="grid grid-cols-3 gap-3 mt-3">
-                  <Field label="Qty">
-                    <input
-                      type="number"
-                      value={l.qty}
-                      onChange={(e) => patch(i, { qty: Number(e.target.value) })}
-                      className="w-full border border-line rounded-lg px-2.5 py-1.5 text-sm tnum focus:border-primary"
-                    />
-                  </Field>
-                  <Field label="UOM">
-                    <div className="px-2.5 py-1.5 text-sm text-muted">{l.uom}</div>
-                  </Field>
-                  <Field label="Sell / unit">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={l.sellUnitPrice}
-                      onChange={(e) => patch(i, { sellUnitPrice: Number(e.target.value) })}
-                      className="w-full border border-line rounded-lg px-2.5 py-1.5 text-sm tnum focus:border-primary"
-                    />
-                  </Field>
+            {lines.map((l, i) => {
+              const det = lineDetection[i];
+              return (
+                <div key={i} className="rounded-lg border border-line p-3.5">
+                  <div className="flex items-center gap-1.5">
+                    <div className="text-sm font-medium text-ink">{l.productName}</div>
+                    {det.product ? (
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-px text-[10px] font-medium leading-none">
+                        detected
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-px text-[10px] font-medium leading-none">
+                        check this
+                      </span>
+                    )}
+                  </div>
+                  {l.specLines.length > 0 && (
+                    <div className="text-[12px] text-faint mt-0.5">{l.specLines.join(" · ")}</div>
+                  )}
+                  <div className="grid grid-cols-3 gap-3 mt-3">
+                    <Field label="Qty" detected={det.qty}>
+                      <input
+                        type="number"
+                        value={l.qty}
+                        onChange={(e) => patch(i, { qty: Number(e.target.value) })}
+                        className="w-full border border-line rounded-lg px-2.5 py-1.5 text-sm tnum focus:border-primary"
+                      />
+                    </Field>
+                    <Field label="UOM">
+                      <div className="px-2.5 py-1.5 text-sm text-muted">{l.uom}</div>
+                    </Field>
+                    <Field label="Sell / unit" detected={det.price}>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={l.sellUnitPrice}
+                        onChange={(e) => patch(i, { sellUnitPrice: Number(e.target.value) })}
+                        className="w-full border border-line rounded-lg px-2.5 py-1.5 text-sm tnum focus:border-primary"
+                      />
+                    </Field>
+                  </div>
+                  <div className="mt-2 text-[12px] text-muted tnum">
+                    Line total: RM {fmt2(l.qty * l.sellUnitPrice)}
+                  </div>
                 </div>
-                <div className="mt-2 text-[12px] text-muted tnum">
-                  Line total: RM {fmt2(l.qty * l.sellUnitPrice)}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Invoice selector */}
@@ -222,30 +261,49 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
                 const seqNo = active.indexOf(company); // -1 if not selected
                 const isSelected = seqNo !== -1;
                 return (
-                  <label key={company} className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleCompany(company)}
-                      className="accent-primary w-4 h-4 flex-shrink-0"
-                    />
-                    {/* Sequence badge — position in tick order, not fixed chain order */}
-                    <span className={`flex-shrink-0 w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center
-                      ${isSelected ? "bg-primary text-white" : "bg-line text-faint"}`}>
-                      {isSelected ? seqNo + 1 : "·"}
-                    </span>
-                    <span className={`text-sm leading-tight ${isSelected ? "text-ink" : "text-muted line-through"}`}>
-                      <span className="font-medium">{COMPANY_LABELS[company]}</span>
-                      {isSelected && (
-                        <span className="text-faint font-normal">
-                          {" · bills "}{billsTo(company, customerName, active)}
-                        </span>
+                  <div key={company}>
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleCompany(company)}
+                        className="accent-primary w-4 h-4 flex-shrink-0"
+                      />
+                      {/* Sequence badge — position in tick order, not fixed chain order */}
+                      <span className={`flex-shrink-0 w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center
+                        ${isSelected ? "bg-primary text-white" : "bg-line text-faint"}`}>
+                        {isSelected ? seqNo + 1 : "·"}
+                      </span>
+                      <span className={`text-sm leading-tight ${isSelected ? "text-ink" : "text-muted line-through"}`}>
+                        <span className="font-medium">{COMPANY_LABELS[company]}</span>
+                        {isSelected && (
+                          <span className="text-faint font-normal">
+                            {" · bills "}{billsTo(company, customerName, active)}
+                          </span>
+                        )}
+                      </span>
+                      {isSelected && seqNo < active.length - 1 && (
+                        <span className="ml-auto text-[11px] text-faint">cost back-calc'd</span>
                       )}
-                    </span>
-                    {isSelected && seqNo < active.length - 1 && (
-                      <span className="ml-auto text-[11px] text-faint">cost back-calc'd</span>
+                    </label>
+                    {isSelected && (
+                      <div className="ml-[26px] mt-1.5">
+                        <input
+                          value={invoiceNoOverrides[company] ?? ""}
+                          onChange={(e) =>
+                            setInvoiceNoOverrides((prev) => {
+                              const next = { ...prev };
+                              if (e.target.value.trim()) next[company] = e.target.value;
+                              else delete next[company];
+                              return next;
+                            })
+                          }
+                          placeholder={`${COMPANY_LABELS[company]} invoice no. — leave blank to auto-generate`}
+                          className="w-full border border-line rounded-lg px-2.5 py-1.5 text-[12px] text-muted focus:border-primary focus:text-ink"
+                        />
+                      </div>
                     )}
-                  </label>
+                  </div>
                 );
               })}
             </div>
@@ -298,10 +356,30 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  detected,
+  children,
+}: {
+  label: string;
+  detected?: boolean; // true = jade "detected" chip, false = amber "check this" chip, undefined = no chip
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
-      <span className="block text-[11px] uppercase tracking-wide text-faint mb-1">{label}</span>
+      <span className="flex items-center gap-1.5 mb-1">
+        <span className="text-[11px] uppercase tracking-wide text-faint">{label}</span>
+        {detected === true && (
+          <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-px text-[10px] font-medium leading-none">
+            detected
+          </span>
+        )}
+        {detected === false && (
+          <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-px text-[10px] font-medium leading-none">
+            check this
+          </span>
+        )}
+      </span>
       {children}
     </label>
   );

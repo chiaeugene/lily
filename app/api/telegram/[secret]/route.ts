@@ -162,19 +162,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
   const order = await parseOrder(text, msg?.from?.username || userId);
   if (fromVoice) order.rawMessage = `🎙 (voice) ${text}`;
 
-  // Anti-chatter guard: only queue when a real catalog product actually matched.
-  // In a group this keeps everyday conversation from creating bogus orders;
-  // in a private chat we nudge the sender toward the right format.
+  // Anti-chatter guard: only auto-queue when a real catalog product actually
+  // matched. In a GROUP this keeps everyday conversation from creating bogus
+  // orders — those messages are dropped on purpose. In a PRIVATE chat a
+  // message to the bot is virtually always an intentional order attempt, so
+  // nothing is ever silently lost: it's still saved as a low-confidence draft
+  // for the dashboard to sort out, instead of vanishing if parsing failed.
   const hasRealLine = order.lines.some(
     (l) => l.qty > 0 && l.productId && !l.productId.startsWith("adhoc-"),
   );
   if (!hasRealLine) {
-    if (!isGroup) {
-      await reply(
-        chatId,
-        "I couldn't read an order from that. Send /order for the template, or e.g.\n\"68 boxes coreless 57x38x12 to KF Advisor @54.50 cod\".",
-      );
-    }
+    if (isGroup) return NextResponse.json({ ok: true });
+
+    order.parseNotes = `Low confidence — couldn't confidently match a product/quantity. ${order.parseNotes ?? ""}`.trim();
+    await repo.addOrder(order);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const dashUrl = appUrl ? `${appUrl}/dashboard` : undefined;
+    await reply(
+      chatId,
+      `⚠️ I couldn't confidently read that as an order, but I saved it as a draft so nothing's lost — open the dashboard to fix it up, or send /order for the template.`,
+      dashUrl ? { text: "Review on dashboard", url: dashUrl } : undefined,
+    );
     return NextResponse.json({ ok: true });
   }
 

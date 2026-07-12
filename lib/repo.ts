@@ -361,9 +361,13 @@ export const repo = {
   async verifyOrder(
     orderId: string,
     actor = "admin",
-    opts: { companies?: CompanyKey[] } = {},
+    opts: {
+      companies?: CompanyKey[];
+      yourRef?: string;
+      invoiceNoOverrides?: Partial<Record<CompanyKey, string>>;
+    } = {},
   ): Promise<Transaction | undefined> {
-    const { companies } = opts;
+    const { companies, yourRef, invoiceNoOverrides } = opts;
     const toGenerate = companies && companies.length > 0 ? companies : CHAIN;
 
     if (isDemoMode) {
@@ -375,6 +379,8 @@ export const repo = {
         orderId: order.id,
         marginRules: store.marginRules,
         companies: toGenerate,
+        yourRef,
+        invoiceNoOverrides,
         allocateInvoiceNo: (co: CompanyKey) => {
           store.counters[co] += 1;
           return formatInvoiceNo(co, store.counters[co]);
@@ -388,6 +394,7 @@ export const repo = {
         "order.verified",
         `${order.id} -> ${tx.id}: ${tx.invoices.map((i) => `${i.company} ${i.invoiceNo}`).join(", ")}`,
       );
+      await this.autoLearnFromOrder(order);
       return tx;
     }
 
@@ -406,9 +413,12 @@ export const repo = {
       value: Number(r.value),
     }));
 
-    // Only increment counters for companies being generated.
+    // Only increment counters for companies being generated, and skip it
+    // entirely for any company with a manually-typed invoice number override
+    // so the auto sequence doesn't burn a number that was never used.
     const counterMap: Record<string, number> = {};
     for (const co of toGenerate) {
+      if (invoiceNoOverrides?.[co]) continue;
       const { data: cRow } = await db
         .from("invoice_counters")
         .select("seq")
@@ -422,6 +432,8 @@ export const repo = {
     const txId = `TX-${Date.now().toString(36).toUpperCase()}`;
     const tx = buildCascade(order, {
       transactionId: txId,
+      yourRef,
+      invoiceNoOverrides,
       orderId: order.id,
       marginRules,
       companies: toGenerate,
@@ -470,6 +482,7 @@ export const repo = {
       "order.verified",
       `${orderId} -> ${tx.id}: ${tx.invoices.map((i) => `${i.company} ${i.invoiceNo}`).join(", ")}`,
     );
+    await this.autoLearnFromOrder(order);
     return tx;
   },
 
@@ -723,6 +736,45 @@ export const repo = {
       .update({ status: "void", void_reason: r, voided_at: new Date().toISOString() })
       .eq("id", id);
     await dbLog(actor, "transaction.void", `${id}: ${r}`);
+  },
+
+  // Best-effort: silently teach the customer/product catalog from a just-verified
+  // order, so it fills itself over time without anyone visiting the Catalog page.
+  // Never throws — a failure here must not block invoice generation.
+  async autoLearnFromOrder(order: Order): Promise<void> {
+    try {
+      const name = order.customerName.trim();
+      if (name && !/^unknown customer$/i.test(name)) {
+        const customers = await this.listCustomers();
+        const existing = customers.find((c) => c.name.toLowerCase() === name.toLowerCase());
+        const hasNewInfo =
+          !existing ||
+          (order.customerAddressLines.length > 0 && existing.addressLines.length === 0) ||
+          (!!order.customerTel && !existing.tel);
+        if (hasNewInfo) {
+          await this.upsertCustomer({
+            id: existing?.id ?? "",
+            name: existing?.name ?? name,
+            addressLines: existing?.addressLines.length ? existing.addressLines : order.customerAddressLines,
+            tel: existing?.tel ?? order.customerTel,
+            fax: existing?.fax,
+          });
+        }
+      }
+
+      const products = await this.listProducts();
+      for (const l of order.lines) {
+        const isAdhoc = l.productId.startsWith("adhoc-");
+        if (!isAdhoc) continue; // already a known catalog product
+        const pname = l.productName.trim();
+        if (!pname || /^unknown product$/i.test(pname)) continue;
+        const already = products.some((p) => p.name.toLowerCase() === pname.toLowerCase());
+        if (already) continue;
+        await this.upsertProduct({ id: "", name: pname, specLines: l.specLines, uom: l.uom });
+      }
+    } catch (e) {
+      console.error("[autoLearn] failed", String((e as Error)?.message ?? e));
+    }
   },
 
   // ── customer master ─────────────────────────────────────────────────────────

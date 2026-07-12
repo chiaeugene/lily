@@ -32,46 +32,12 @@
   75%       { transform: translateX(6px); }
 }
 
-/* ── Aurora — single warm band, guaranteed to animate everywhere ─────────── */
-/*
-   Single radial-gradient blob animated with transform (GPU-accelerated).
-   No background-attachment:fixed (breaks on many browsers when deployed).
-   No ::after layer (caused the "2 streams" appearance).
-*/
-@keyframes aurora-drift {
-  0%   { transform: translate(0%,    0%)   scale(1.00); }
-  20%  { transform: translate(8%,    12%)  scale(1.05); }
-  45%  { transform: translate(-6%,   8%)   scale(1.08); }
-  70%  { transform: translate(4%,   -10%)  scale(1.03); }
-  100% { transform: translate(0%,    0%)   scale(1.00); }
-}
-
-.aurora {
-  position: absolute;
-  /* extend 25% beyond parent on all sides so drift never shows a hard edge */
-  inset: -25%;
-  background: radial-gradient(
-    ellipse 65% 50% at 60% 42%,
-    rgba(253, 224, 71,  0.5)  0%,
-    rgba(251, 146, 60,  0.6) 28%,
-    rgba(239,  68, 68,  0.45) 52%,
-    rgba(245, 158, 11,  0.35) 72%,
-    transparent 90%
-  );
-  filter: blur(55px) saturate(1.12);
-  animation: aurora-drift 22s ease-in-out infinite;
-  will-change: transform;
-  pointer-events: none;
-}
-
-/* For the app shell: constrain warm glow to top-right quadrant */
-.aurora--masked {
-  -webkit-mask-image: radial-gradient(ellipse 100% 60% at 88% 0%, black 15%, transparent 65%);
-  mask-image: radial-gradient(ellipse 100% 60% at 88% 0%, black 15%, transparent 65%);
-}
+/* The app-shell "aurora" warm-gradient background was removed as part of the
+   2026 redesign — decorative full-shell chrome like that is exactly what the
+   restraint pass reacted against. Login's AuroraBackground component is
+   separate and untouched. */
 
 @media (prefers-reduced-motion: reduce) {
-  .aurora { animation: none; }
   * {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;

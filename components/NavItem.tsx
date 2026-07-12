@@ -20,15 +20,14 @@ export default function NavItem({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${
-        active ? "bg-sidebar-active text-white" : "text-slate-400 hover:bg-sidebar-hover hover:text-slate-100"
+      className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] font-medium transition-colors ${
+        active ? "bg-primary-soft text-primary-hover" : "text-muted hover:bg-surface-2 hover:text-ink"
       }`}
     >
-      {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand" />}
-      <span className={active ? "text-brand" : ""}>{icon}</span>
+      {icon}
       <span>{label}</span>
       {badge > 0 && (
-        <span className="ml-auto bg-loss text-white text-[11px] font-semibold rounded-full min-w-5 h-5 px-1.5 grid place-items-center">
+        <span className="ml-auto bg-primary text-white text-[10px] font-bold rounded-full min-w-5 h-5 px-1.5 grid place-items-center font-mono">
           {badge}
         </span>
       )}

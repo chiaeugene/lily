@@ -1,33 +1,36 @@
 import type { Config } from "tailwindcss";
 
-// Deliberate design system (ui-ux-pro-max: data-dense financial admin, light mode):
-// neutral slate surfaces, indigo primary, semantic profit/loss, violet Lily brand.
+// Design system v2 ("Geist SaaS", 2026 refresh): warm-neutral surfaces, one
+// confident indigo accent (not desaturated, not rainbow), semantic profit/loss/
+// warn kept separate from the accent hue, soft layered shadows over flat borders.
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        canvas: "#F6F7F9",
-        surface: "#FFFFFF",
-        ink: "#0F172A", // slate-900, primary text
-        muted: "#64748B", // slate-500, secondary text
-        faint: "#94A3B8", // slate-400
-        line: "#E8EAEE", // hairline borders
-        primary: { DEFAULT: "#4F46E5", hover: "#4338CA", soft: "#EEF2FF" }, // indigo
-        brand: { DEFAULT: "#7C3AED", soft: "#F5F3FF" }, // violet (Lily)
-        sidebar: { DEFAULT: "#0B1220", hover: "#161F32", active: "#1E293B" },
-        profit: { DEFAULT: "#16A34A", soft: "#ECFDF5" },
-        loss: { DEFAULT: "#DC2626", soft: "#FEF2F2" },
-        warn: { DEFAULT: "#D97706", soft: "#FFFBEB" },
+        canvas: "#FAFAF9",
+        surface: { DEFAULT: "#FFFFFF", 2: "#F6F6F5" },
+        ink: "#1A1A18",
+        muted: "#6F6E68",
+        faint: "#A6A49C",
+        line: { DEFAULT: "#EAE9E5", strong: "#DDDBD5" },
+        primary: { DEFAULT: "#4F46E5", light: "#7C74F0", hover: "#3730A3", soft: "#F0EFFE" }, // indigo accent
+        brand: { DEFAULT: "#7C3AED", soft: "#F5F3FF" }, // violet (Lily wordmark only)
+        sidebar: { DEFAULT: "#0B1220", hover: "#161F32", active: "#1E293B" }, // kept for any residual dark-panel use
+        profit: { DEFAULT: "#0E8A5F", soft: "#E9F7F0" },
+        loss: { DEFAULT: "#E23F44", soft: "#FDECED" },
+        warn: { DEFAULT: "#C2760C", soft: "#FDF3E3" },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["var(--font-geist)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
       },
       boxShadow: {
-        card: "0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06)",
-        pop: "0 10px 30px rgba(16,24,40,0.12), 0 2px 8px rgba(16,24,40,0.08)",
+        card: "0 1px 2px rgba(26,26,24,0.04), 0 1px 1px rgba(26,26,24,0.03)",
+        lift: "0 2px 5px rgba(26,26,24,0.05), 0 12px 28px -10px rgba(26,26,24,0.12)",
+        pop: "0 4px 10px rgba(26,26,24,0.06), 0 24px 48px -14px rgba(26,26,24,0.18)",
       },
-      borderRadius: { xl: "12px", "2xl": "16px" },
+      borderRadius: { xl: "14px", "2xl": "18px" },
     },
   },
   plugins: [],

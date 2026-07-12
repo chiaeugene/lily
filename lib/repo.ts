@@ -915,29 +915,65 @@ export const repo = {
     transactions: number;
     totalSell: number;
     marginCaptured: number;
+    salesThisMonth: number;
+    salesLastMonth: number;
+    marginThisMonth: number;
+    outstanding: number;
   }> {
+    const now = new Date();
+    const thisKey = `${now.getFullYear()}-${now.getMonth()}`;
+    const lastD = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastKey = `${lastD.getFullYear()}-${lastD.getMonth()}`;
+    function monthKey(ddmmyyyy: string): string | null {
+      const m = ddmmyyyy.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      return m ? `${m[3]}-${Number(m[2]) - 1}` : null;
+    }
+
     if (isDemoMode) {
       const txs = store.transactions.filter((t) => t.status !== "void");
+      let salesThisMonth = 0, salesLastMonth = 0, marginThisMonth = 0, outstanding = 0;
+      for (const t of txs) {
+        const key = monthKey(t.date);
+        if (key === thisKey) { salesThisMonth += t.grandTotalSell; marginThisMonth += t.marginCaptured; }
+        if (key === lastKey) salesLastMonth += t.grandTotalSell;
+        if ((t.paidStatus ?? "unpaid") !== "paid") outstanding += t.grandTotalSell;
+      }
       return {
         pending: store.orders.filter((o) => o.status === "pending").length,
         transactions: txs.length,
         totalSell: txs.reduce((s, t) => s + t.grandTotalSell, 0),
         marginCaptured: txs.reduce((s, t) => s + t.marginCaptured, 0),
+        salesThisMonth,
+        salesLastMonth,
+        marginThisMonth,
+        outstanding,
       };
     }
     const db = getSupabaseAdmin();
-    // select("*") tolerates the status column being absent before migration 001
-    // runs; we filter void in JS so a missing column never errors the dashboard.
+    // select("*") tolerates the status/paid_status columns being absent before
+    // their migrations run; we filter/default in JS so the dashboard never errors.
     const [{ count: pendingCount }, { data: agg }] = await Promise.all([
       db.from("orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
       db.from("transactions").select("*"),
     ]);
     const txs = (agg ?? []).filter((t: { status?: string }) => (t.status ?? "active") !== "void");
+    let salesThisMonth = 0, salesLastMonth = 0, marginThisMonth = 0, outstanding = 0;
+    for (const t of txs as { date: string; grand_total_sell: string; margin_captured: string; paid_status?: string }[]) {
+      const key = monthKey(t.date);
+      const sell = Number(t.grand_total_sell);
+      if (key === thisKey) { salesThisMonth += sell; marginThisMonth += Number(t.margin_captured); }
+      if (key === lastKey) salesLastMonth += sell;
+      if ((t.paid_status ?? "unpaid") !== "paid") outstanding += sell;
+    }
     return {
       pending: pendingCount ?? 0,
       transactions: txs.length,
       totalSell: txs.reduce((s: number, t: { grand_total_sell: string }) => s + Number(t.grand_total_sell), 0),
       marginCaptured: txs.reduce((s: number, t: { margin_captured: string }) => s + Number(t.margin_captured), 0),
+      salesThisMonth,
+      marginThisMonth,
+      salesLastMonth,
+      outstanding,
     };
   },
 

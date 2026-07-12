@@ -135,3 +135,9 @@ export const IconBox = ({ className, size }: P) => (
     <path d="M12 13v8" />
   </svg>
 );
+export const IconTrendUp = ({ className, size }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M23 6l-9.5 9.5-5-5L1 18" />
+    <path d="M17 6h6v6" />
+  </svg>
+);

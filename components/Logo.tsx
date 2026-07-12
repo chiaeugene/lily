@@ -42,8 +42,8 @@ export function LilyLogo({ subtitle = true }: { subtitle?: boolean }) {
     <div className="flex items-center gap-2.5">
       <LilyMark size={32} />
       <div className="leading-none">
-        <div className="text-[19px] font-semibold tracking-tight text-white">Lily</div>
-        {subtitle && <div className="text-[11px] text-slate-400 mt-0.5">your 24/7 back-office</div>}
+        <div className="text-[19px] font-semibold tracking-tight text-ink">Lily</div>
+        {subtitle && <div className="text-[11px] text-faint mt-0.5">your 24/7 back-office</div>}
       </div>
     </div>
   );

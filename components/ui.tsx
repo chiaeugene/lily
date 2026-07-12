@@ -22,23 +22,39 @@ export function KpiCard({
   tone = "ink",
   prefix = "",
   hint,
+  icon,
+  deltaPct,
 }: {
   label: string;
   value: number | string;
   tone?: "ink" | "profit" | "loss" | "primary";
   prefix?: string;
   hint?: string;
+  icon?: React.ReactNode;
+  /** Month-over-month % change. Omit entirely rather than fabricate — only pass when there's real prior-period data. */
+  deltaPct?: number;
 }) {
-  const color =
+  const numColor =
     tone === "profit" ? "text-profit" : tone === "loss" ? "text-loss" : tone === "primary" ? "text-primary" : "text-ink";
+  const badgeCls =
+    tone === "profit" ? "bg-profit-soft text-profit" : tone === "loss" ? "bg-loss-soft text-loss" : tone === "primary" ? "bg-primary-soft text-primary-hover" : "bg-surface-2 text-muted";
   return (
-    <div className="bg-surface rounded-xl border border-line shadow-card p-5">
-      <div className="text-[12px] font-medium uppercase tracking-wide text-faint">{label}</div>
-      <div className={`mt-2 text-[26px] font-semibold tnum leading-none ${color}`}>
+    <div className="bg-surface rounded-2xl border border-line shadow-card hover:shadow-lift hover:-translate-y-0.5 transition-all duration-200 p-5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[12px] font-medium text-muted">{label}</div>
+        {icon && <div className={`h-7 w-7 rounded-lg grid place-items-center shrink-0 ${badgeCls}`}>{icon}</div>}
+      </div>
+      <div className={`mt-2.5 font-mono text-[24px] font-semibold tnum leading-none ${numColor}`}>
         {prefix}
         {typeof value === "number" ? fmt2(value) : value}
       </div>
-      {hint && <div className="mt-1.5 text-[12px] text-muted">{hint}</div>}
+      {deltaPct != null ? (
+        <div className={`mt-1.5 text-[12px] font-medium ${deltaPct >= 0 ? "text-profit" : "text-loss"}`}>
+          {deltaPct >= 0 ? "↑" : "↓"} {Math.abs(deltaPct).toFixed(1)}% vs last month
+        </div>
+      ) : hint ? (
+        <div className="mt-1.5 text-[12px] text-faint">{hint}</div>
+      ) : null}
     </div>
   );
 }
@@ -48,14 +64,16 @@ export function Card({
   children,
   action,
   pad = true,
+  id,
 }: {
   title?: string;
   children: React.ReactNode;
   action?: React.ReactNode;
   pad?: boolean;
+  id?: string;
 }) {
   return (
-    <section className="bg-surface rounded-xl border border-line shadow-card">
+    <section id={id} className="bg-surface rounded-xl border border-line shadow-card scroll-mt-20">
       {title && (
         <div className="flex items-center justify-between px-5 h-[52px] border-b border-line">
           <h2 className="font-semibold text-[14px] text-ink">{title}</h2>

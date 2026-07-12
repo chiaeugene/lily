@@ -44,7 +44,7 @@ export default function MobileNav({
       <button
         onClick={() => setOpen(true)}
         className="md:hidden fixed top-0 left-0 z-40 h-16 w-16 flex items-center justify-center
-          text-slate-400 hover:text-white bg-sidebar border-b border-r border-white/[0.06]
+          text-muted hover:text-ink bg-surface border-b border-r border-line
           transition-colors duration-150"
         aria-label="Open navigation"
       >
@@ -69,15 +69,15 @@ export default function MobileNav({
 
       {/* Slide-in drawer */}
       <aside
-        className={`md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-sidebar text-slate-300
-          flex flex-col shadow-2xl transition-transform duration-300 ease-out
+        className={`md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-surface
+          flex flex-col shadow-pop transition-transform duration-300 ease-out
           ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
-        <div className="px-5 h-16 flex items-center justify-between border-b border-white/[0.06] shrink-0">
+        <div className="px-5 h-16 flex items-center justify-between border-b border-line shrink-0">
           <LilyLogo />
           <button
             onClick={() => setOpen(false)}
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+            className="text-muted hover:text-ink p-1.5 rounded-lg hover:bg-surface-2 transition-colors"
             aria-label="Close navigation"
           >
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
@@ -103,12 +103,12 @@ export default function MobileNav({
           ))}
         </nav>
 
-        <div className="px-5 py-4 border-t border-white/[0.06] shrink-0">
+        <div className="px-5 py-4 border-t border-line shrink-0">
           <div className="flex items-center gap-2 text-[11px]">
             <span className={`h-1.5 w-1.5 rounded-full ${demoMode ? "bg-warn" : "bg-profit"}`} />
-            <span className="text-slate-400">{demoMode ? "Demo mode" : "Live · Supabase"}</span>
+            <span className="text-muted">{demoMode ? "Demo mode" : "Live · Supabase"}</span>
           </div>
-          <div className="text-[11px] text-slate-500 mt-1.5">Tien Ngai → Prim → 3C</div>
+          <div className="text-[11px] text-faint mt-1.5">Tien Ngai → Prim → 3C</div>
           <LogoutButton />
         </div>
       </aside>

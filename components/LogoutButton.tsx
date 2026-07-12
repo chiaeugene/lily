@@ -13,7 +13,7 @@ export default function LogoutButton() {
   return (
     <button
       onClick={logout}
-      className="mt-3 w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-400 hover:bg-sidebar-hover hover:text-white"
+      className="mt-3 w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium text-faint hover:bg-surface-2 hover:text-ink"
     >
       <IconLogout size={16} /> Lock / log out
     </button>

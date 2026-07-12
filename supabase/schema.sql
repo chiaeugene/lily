@@ -78,7 +78,13 @@ create table if not exists transactions (
   date text not null,
   grand_total_sell numeric not null,
   margin_captured numeric not null,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  status text not null default 'active',        -- active | void            (migration 001)
+  void_reason text,
+  voided_at timestamptz,
+  terms_days integer not null default 0,         -- due-date/aging calc      (migration 003)
+  paid_status text not null default 'unpaid' check (paid_status in ('unpaid', 'paid')),
+  paid_at timestamptz
 );
 
 create table if not exists invoices (

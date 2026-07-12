@@ -1,4 +1,6 @@
 import { fmt2 } from "@/lib/money";
+import type { Transaction } from "@/lib/types";
+import { paymentState, daysOverdue } from "@/lib/payment";
 
 export function PageHeader({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) {
   return (
@@ -84,4 +86,17 @@ export function ConfidencePill({ value }: { value: number }) {
   const pct = Math.round(value * 100);
   const tone = pct >= 85 ? "bg-profit-soft text-profit" : pct >= 60 ? "bg-warn-soft text-warn" : "bg-loss-soft text-loss";
   return <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold ${tone}`}>AI {pct}%</span>;
+}
+
+/** Paid / Unpaid / Overdue (Nd) chip, computed from the transaction's terms + paid status. */
+export function PaymentStatusChip({ tx }: { tx: Transaction }) {
+  const state = paymentState(tx);
+  if (state === "paid") {
+    return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-profit-soft text-profit">Paid</span>;
+  }
+  if (state === "overdue") {
+    const d = daysOverdue(tx);
+    return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-loss-soft text-loss">Overdue {d}d</span>;
+  }
+  return <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold bg-canvas text-muted border border-line">Unpaid</span>;
 }

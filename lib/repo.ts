@@ -94,6 +94,9 @@ function rowToTransaction(r: any, invoices: Invoice[]): Transaction {
     status: (r.status as "active" | "void") ?? "active",
     voidReason: r.void_reason ?? undefined,
     voidedAt: r.voided_at ?? undefined,
+    termsDays: r.terms_days != null ? Number(r.terms_days) : 0,
+    paidStatus: (r.paid_status as "unpaid" | "paid") ?? "unpaid",
+    paidAt: r.paid_at ?? undefined,
   };
 }
 
@@ -339,18 +342,20 @@ export const repo = {
 
   async patchOrder(
     id: string,
-    updates: { customerName?: string; date?: string; lines?: OrderLine[] },
+    updates: { customerName?: string; date?: string; terms?: string; lines?: OrderLine[] },
   ): Promise<void> {
     if (isDemoMode) {
       const o = store.orders.find((x) => x.id === id);
       if (!o) return;
       if (updates.customerName) o.customerName = updates.customerName;
       if (updates.date) o.date = updates.date;
+      if (updates.terms) o.terms = updates.terms;
       if (updates.lines) o.lines = updates.lines;
     } else {
       const patch: Record<string, unknown> = {};
       if (updates.customerName) patch.customer_name = updates.customerName;
       if (updates.date) patch.date = updates.date;
+      if (updates.terms) patch.terms = updates.terms;
       if (updates.lines) patch.lines = updates.lines;
       if (Object.keys(patch).length) {
         await getSupabaseAdmin().from("orders").update(patch).eq("id", id);
@@ -365,9 +370,10 @@ export const repo = {
       companies?: CompanyKey[];
       yourRef?: string;
       invoiceNoOverrides?: Partial<Record<CompanyKey, string>>;
+      termsDays?: number;
     } = {},
   ): Promise<Transaction | undefined> {
-    const { companies, yourRef, invoiceNoOverrides } = opts;
+    const { companies, yourRef, invoiceNoOverrides, termsDays } = opts;
     const toGenerate = companies && companies.length > 0 ? companies : CHAIN;
 
     if (isDemoMode) {
@@ -387,6 +393,8 @@ export const repo = {
         },
       };
       const tx = buildCascade(order, buildOpts);
+      tx.termsDays = termsDays ?? 0;
+      tx.paidStatus = "unpaid";
       order.status = "verified";
       store.transactions.unshift(tx);
       memLog(
@@ -440,6 +448,9 @@ export const repo = {
       allocateInvoiceNo: (co: CompanyKey) => formatInvoiceNo(co, counterMap[co]),
     });
 
+    tx.termsDays = termsDays ?? 0;
+    tx.paidStatus = "unpaid";
+
     // save transaction
     await db.from("transactions").insert({
       id: tx.id,
@@ -449,6 +460,8 @@ export const repo = {
       grand_total_sell: tx.grandTotalSell,
       margin_captured: tx.marginCaptured,
       created_at: tx.createdAt,
+      terms_days: tx.termsDays,
+      paid_status: tx.paidStatus,
     });
 
     // save invoices
@@ -736,6 +749,23 @@ export const repo = {
       .update({ status: "void", void_reason: r, voided_at: new Date().toISOString() })
       .eq("id", id);
     await dbLog(actor, "transaction.void", `${id}: ${r}`);
+  },
+
+  async markTransactionPaid(id: string, paid: boolean, actor = "admin"): Promise<void> {
+    const paidAt = paid ? new Date().toISOString() : null;
+    if (isDemoMode) {
+      const t = store.transactions.find((x) => x.id === id);
+      if (!t) return;
+      t.paidStatus = paid ? "paid" : "unpaid";
+      t.paidAt = paidAt ?? undefined;
+      memLog(actor, paid ? "transaction.paid" : "transaction.unpaid", id);
+      return;
+    }
+    await getSupabaseAdmin()
+      .from("transactions")
+      .update({ paid_status: paid ? "paid" : "unpaid", paid_at: paidAt })
+      .eq("id", id);
+    await dbLog(actor, paid ? "transaction.paid" : "transaction.unpaid", id);
   },
 
   // Best-effort: silently teach the customer/product catalog from a just-verified

@@ -129,6 +129,7 @@ export interface Invoice {
 }
 
 export type TransactionStatus = "active" | "void";
+export type PaidStatus = "unpaid" | "paid";
 
 /** One order -> one Transaction holding the three cascade invoices. */
 export interface Transaction {
@@ -143,6 +144,10 @@ export interface Transaction {
   status?: TransactionStatus; // undefined treated as "active"
   voidReason?: string;
   voidedAt?: string;
+  /** Days from invoice date until payment is due (0 = due same day / C.O.D.). */
+  termsDays?: number;
+  paidStatus?: PaidStatus; // undefined treated as "unpaid"
+  paidAt?: string;
 }
 
 export interface AuditEntry {

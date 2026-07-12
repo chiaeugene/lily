@@ -1,6 +1,7 @@
 import { repo } from "@/lib/repo";
 import { PageHeader, Card, KpiCard } from "@/components/ui";
 import { fmt2 } from "@/lib/money";
+import { AGING_BUCKETS, agingBucket, paymentState } from "@/lib/payment";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -9,7 +10,7 @@ export default async function AnalysisPage() {
   const txs = all.filter((t) => t.status !== "void"); // void excluded from analytics
 
   const byProduct = new Map<string, { qty: number; sell: number }>();
-  const byCustomer = new Map<string, { sell: number; margin: number; count: number }>();
+  const byCustomer = new Map<string, { sell: number; margin: number; count: number; outstanding: number }>();
   // month key "yyyy-MM" -> totals
   const byMonth = new Map<string, { label: string; sell: number; margin: number }>();
   // per-tier margin earned across the group
@@ -17,14 +18,24 @@ export default async function AnalysisPage() {
   let totalSell = 0;
   let totalMargin = 0;
 
+  // aging buckets — total outstanding RM per bucket, unpaid/overdue transactions only
+  const aging = new Map<string, number>(AGING_BUCKETS.map((b) => [b, 0]));
+  let totalOutstanding = 0;
+
   for (const t of txs) {
     totalSell += t.grandTotalSell;
     totalMargin += t.marginCaptured;
 
-    const c = byCustomer.get(t.customerName) ?? { sell: 0, margin: 0, count: 0 };
+    const c = byCustomer.get(t.customerName) ?? { sell: 0, margin: 0, count: 0, outstanding: 0 };
     c.sell += t.grandTotalSell;
     c.margin += t.marginCaptured;
     c.count += 1;
+    if (paymentState(t) !== "paid") {
+      c.outstanding += t.grandTotalSell;
+      const bucket = agingBucket(t);
+      aging.set(bucket, (aging.get(bucket) ?? 0) + t.grandTotalSell);
+      totalOutstanding += t.grandTotalSell;
+    }
     byCustomer.set(t.customerName, c);
 
     // month bucket (date is dd/MM/yyyy)
@@ -58,12 +69,14 @@ export default async function AnalysisPage() {
   const months = [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
   const maxMonth = Math.max(1, ...months.map((m) => m.sell));
   const maxTier = Math.max(1, tierMargin.prim, tierMargin["3c"]);
+  const maxAging = Math.max(1, ...aging.values());
+  const rankedCustomers = [...byCustomer.entries()].sort(([, a], [, b]) => b.sell - a.sell);
 
   return (
     <>
       <PageHeader title="Sales Analysis" sub="Volume, revenue and the margin earned at each tier" />
       <div className="p-4 md:p-8 space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <KpiCard label="Transactions" value={String(txs.length)} tone="primary" />
           <KpiCard label="Total sales" value={totalSell} prefix="RM " />
           <KpiCard label="Group margin" value={totalMargin} prefix="RM " tone="profit" />
@@ -72,6 +85,7 @@ export default async function AnalysisPage() {
             value={totalSell ? `${((totalMargin / totalSell) * 100).toFixed(1)}%` : "—"}
             tone="profit"
           />
+          <KpiCard label="Outstanding" value={totalOutstanding} prefix="RM " tone={totalOutstanding ? "loss" : "ink"} />
         </div>
 
         <Card title="Monthly trend">
@@ -138,7 +152,38 @@ export default async function AnalysisPage() {
           </Card>
         </div>
 
-        <Card title="By customer">
+        <Card title="Aging — outstanding balance">
+          {totalOutstanding === 0 ? (
+            <p className="text-sm text-muted py-4 text-center">Nothing outstanding — all invoices paid.</p>
+          ) : (
+            <div className="space-y-4">
+              {AGING_BUCKETS.map((b) => {
+                const v = aging.get(b) ?? 0;
+                const overdueTone = b !== "Not due";
+                return (
+                  <div key={b}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className={overdueTone && v > 0 ? "text-loss font-medium" : ""}>{b}</span>
+                      <span className="tnum font-medium">RM {fmt2(v)}</span>
+                    </div>
+                    <div className="h-2.5 bg-canvas rounded">
+                      <div
+                        className={`h-2.5 rounded ${overdueTone ? "bg-loss" : "bg-primary"}`}
+                        style={{ width: `${(v / maxAging) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="pt-3 border-t border-line flex justify-between text-[13px]">
+                <span className="text-muted">Total outstanding</span>
+                <span className="tnum font-semibold text-loss">RM {fmt2(totalOutstanding)}</span>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        <Card title="By customer — ranked by sales">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-slate-400 border-b border-line">
@@ -146,20 +191,22 @@ export default async function AnalysisPage() {
                 <th className="font-normal py-2 text-right">Orders</th>
                 <th className="font-normal py-2 text-right">Sales (RM)</th>
                 <th className="font-normal py-2 text-right">Margin (RM)</th>
+                <th className="font-normal py-2 text-right">Outstanding (RM)</th>
               </tr>
             </thead>
             <tbody>
-              {[...byCustomer.entries()].map(([name, c]) => (
+              {rankedCustomers.map(([name, c]) => (
                 <tr key={name} className="border-b border-line/70">
                   <td className="py-2">{name}</td>
                   <td className="text-right tnum">{c.count}</td>
                   <td className="text-right tnum">{fmt2(c.sell)}</td>
                   <td className="text-right tnum text-profit">{fmt2(c.margin)}</td>
+                  <td className={`text-right tnum ${c.outstanding > 0 ? "text-loss" : "text-faint"}`}>{fmt2(c.outstanding)}</td>
                 </tr>
               ))}
               {byCustomer.size === 0 && (
                 <tr>
-                  <td colSpan={4} className="text-center text-slate-400 py-4">No data yet.</td>
+                  <td colSpan={5} className="text-center text-slate-400 py-4">No data yet.</td>
                 </tr>
               )}
             </tbody>

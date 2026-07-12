@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { repo } from "@/lib/repo";
-import { PageHeader, CompanyBadge } from "@/components/ui";
+import { PageHeader, CompanyBadge, PaymentStatusChip } from "@/components/ui";
 import { IconDownload } from "@/components/icons";
 import VoidButton from "@/components/VoidButton";
+import MarkPaidButton from "@/components/MarkPaidButton";
 import { fmt2 } from "@/lib/money";
+import { dueDate } from "@/lib/payment";
 
 export default async function TransactionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,6 +14,7 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
   if (!tx) notFound();
 
   const voided = tx.status === "void";
+  const due = dueDate(tx);
 
   return (
     <>
@@ -39,7 +42,17 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
             <div className="text-xs text-slate-400">Group margin captured</div>
             <div className={`text-lg font-bold tnum ${voided ? "line-through text-muted" : "text-profit"}`}>RM {fmt2(tx.marginCaptured)}</div>
           </div>
+          {!voided && (
+            <div>
+              <div className="text-xs text-slate-400">Payment</div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <PaymentStatusChip tx={tx} />
+                {due && <span className="text-xs text-muted">due {due.toLocaleDateString("en-MY")}</span>}
+              </div>
+            </div>
+          )}
           <div className="ml-auto self-center flex items-center gap-2">
+            {!voided && <MarkPaidButton transactionId={tx.id} paid={tx.paidStatus === "paid"} />}
             {!voided && <VoidButton transactionId={tx.id} />}
             <Link
               href={`/api/transaction/${tx.id}/pdf`}

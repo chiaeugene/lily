@@ -78,6 +78,11 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
   const [busy, setBusy] = useState<"" | "verify" | "reject">("");
   const [customerName, setCustomerName] = useState(order.customerName);
   const [date, setDate] = useState(order.date);
+  const [terms, setTerms] = useState(order.terms);
+  const [termsDays, setTermsDays] = useState(() => {
+    const m = order.terms.match(/(\d+)\s*days?/i);
+    return m ? Number(m[1]) : 0; // default 0 (due same day / C.O.D.) unless a number is stated
+  });
   const [lines, setLines] = useState(order.lines);
   const [ackIssues, setAckIssues] = useState(false);
   const [yourRef, setYourRef] = useState("");
@@ -132,7 +137,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
     const res = await fetch(`/api/orders/${order.id}/verify`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ customerName, date, lines, companies, yourRef, invoiceNoOverrides }),
+      body: JSON.stringify({ customerName, date, terms, termsDays, lines, companies, yourRef, invoiceNoOverrides }),
     });
     const data = await res.json();
     if (data.transactionId) {
@@ -175,19 +180,38 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
             <div className="rounded-lg bg-warn-soft text-warn text-[13px] px-3 py-2">{order.parseNotes}</div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
-            <Field label="Customer" detected={customerDetected}>
-              <input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:border-primary"
-              />
-            </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <Field label="Customer" detected={customerDetected}>
+                <input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:border-primary"
+                />
+              </Field>
+            </div>
             <Field label="Invoice date">
               <input
                 type="date"
                 value={toInputDate(date)}
                 onChange={(e) => setDate(fromInputDate(e.target.value) || date)}
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm tnum focus:border-primary"
+              />
+            </Field>
+            <Field label="Terms">
+              <input
+                value={terms}
+                onChange={(e) => setTerms(e.target.value)}
+                placeholder="C.O.D."
+                className="w-full border border-line rounded-lg px-3 py-2 text-sm focus:border-primary"
+              />
+            </Field>
+            <Field label="Payment due (days from invoice date)">
+              <input
+                type="number"
+                min={0}
+                value={termsDays}
+                onChange={(e) => setTermsDays(Math.max(0, Number(e.target.value)))}
                 className="w-full border border-line rounded-lg px-3 py-2 text-sm tnum focus:border-primary"
               />
             </Field>

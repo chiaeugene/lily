@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Transaction } from "@/lib/types";
-import { CompanyBadge } from "@/components/ui";
+import { CompanyBadge, PaymentStatusChip } from "@/components/ui";
 import InvoiceViewer, { InvoiceRef } from "@/components/InvoiceViewer";
 import { IconEye, IconPrinter, IconDownload } from "@/components/icons";
 import { fmt2 } from "@/lib/money";
@@ -60,6 +60,7 @@ export default function TransactionsList({ transactions }: { transactions: Trans
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="font-mono text-[11px] text-faint">{t.id}</span>
                   <span className="text-[12px] text-muted">{t.date}</span>
+                  {t.status !== "void" && <PaymentStatusChip tx={t} />}
                 </div>
               </div>
               <div className="flex items-center gap-4 sm:gap-5 shrink-0">

@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const updates: { customerName?: string; date?: string; lines?: typeof order.lines } = {};
+  const updates: { customerName?: string; date?: string; terms?: string; lines?: typeof order.lines } = {};
 
   if (typeof body.customerName === "string" && body.customerName.trim()) {
     updates.customerName = body.customerName.trim();
@@ -43,6 +43,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (typeof body.date === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(body.date.trim())) {
     updates.date = body.date.trim();
   }
+  if (typeof body.terms === "string" && body.terms.trim()) {
+    updates.terms = body.terms.trim();
+  }
+  const termsDays: number | undefined = Number.isFinite(body.termsDays) && Number(body.termsDays) >= 0
+    ? Number(body.termsDays)
+    : undefined;
   if (Array.isArray(body.lines)) {
     updates.lines = order.lines.map((l, i) => {
       const edit = body.lines[i];
@@ -59,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await repo.patchOrder(id, updates);
   }
 
-  const tx = await repo.verifyOrder(id, "admin", { companies, yourRef, invoiceNoOverrides });
+  const tx = await repo.verifyOrder(id, "admin", { companies, yourRef, invoiceNoOverrides, termsDays });
   if (!tx) return NextResponse.json({ error: "could not generate" }, { status: 500 });
   return NextResponse.json({ transactionId: tx.id });
 }

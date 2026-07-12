@@ -20,7 +20,7 @@ export default async function Dashboard() {
   return (
     <>
       <PageHeader title="Dashboard" sub="Tien Ngai Machinery → Prim Paper → 3C Industries → customer" />
-      <div className="p-4 md:p-8 space-y-5 max-w-[1200px] w-full">
+      <div className="p-4 md:p-8 space-y-5 max-w-[1200px] w-full mx-auto">
         <DashboardHero pending={k.pending} marginThisMonth={k.marginThisMonth} />
 
         {/* 1 col (mobile) · 2 cols (tablet) · 4 cols (desktop) — always balanced */}

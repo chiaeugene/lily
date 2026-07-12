@@ -12,7 +12,7 @@ export default async function RecordsPage() {
   return (
     <>
       <PageHeader title="Records" sub="Full transaction archive and audit log" />
-      <div className="p-4 md:p-8 space-y-6 max-w-[1200px] w-full">
+      <div className="p-4 md:p-8 space-y-6 max-w-[1200px] w-full mx-auto">
         <Card title="Export">
           <ExportBar />
         </Card>

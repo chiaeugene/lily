@@ -14,7 +14,7 @@ export default async function SearchPage({
   return (
     <>
       <PageHeader title="Search" sub="Find transactions by customer, invoice number, or product" />
-      <div className="p-4 md:p-8 space-y-6">
+      <div className="p-4 md:p-8 space-y-6 max-w-[1200px] w-full mx-auto">
         <form className="flex gap-2">
           <input
             name="q"

@@ -10,7 +10,7 @@ export default async function NewQuotationPage() {
   return (
     <>
       <PageHeader title="New quotation" sub="Pick a customer and add products from the catalog" />
-      <div className="p-4 md:p-8 max-w-[900px] w-full">
+      <div className="p-4 md:p-8 max-w-[900px] w-full mx-auto">
         <QuoteBuilder products={products} customers={customers} />
       </div>
     </>

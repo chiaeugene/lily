@@ -27,7 +27,7 @@ export default async function QuotationViewPage({ params }: { params: Promise<{ 
           </Link>
         }
       />
-      <div className="p-4 md:p-8 space-y-4 max-w-[900px] w-full">
+      <div className="p-4 md:p-8 space-y-4 max-w-[900px] w-full mx-auto">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           {quote.status === "accepted" ? (
             <span className="text-[13px] text-emerald-700">This quote was accepted and converted to an order.</span>

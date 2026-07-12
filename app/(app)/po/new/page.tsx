@@ -18,7 +18,7 @@ export default async function NewPurchaseOrderPage({
         title="New purchase order"
         sub={quote ? `Procurement for quotation ${quote.id} — ${quote.customerName}` : "Order raw materials from a supplier"}
       />
-      <div className="p-4 md:p-8 max-w-[900px] w-full">
+      <div className="p-4 md:p-8 max-w-[900px] w-full mx-auto">
         <PoBuilder quotationId={quote?.id} defaultYourRef={quote?.id} />
       </div>
     </>

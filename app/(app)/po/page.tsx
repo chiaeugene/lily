@@ -33,7 +33,7 @@ export default async function PurchaseOrderPage() {
           </Link>
         }
       />
-      <div className="p-4 md:p-8">
+      <div className="p-4 md:p-8 max-w-[1200px] w-full mx-auto">
         <Card pad={false}>
           {pos.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center py-16 gap-3 px-4">

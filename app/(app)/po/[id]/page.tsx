@@ -26,7 +26,7 @@ export default async function PurchaseOrderViewPage({ params }: { params: Promis
           </Link>
         }
       />
-      <div className="p-4 md:p-8 space-y-4 max-w-[900px] w-full">
+      <div className="p-4 md:p-8 space-y-4 max-w-[900px] w-full mx-auto">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           {po.status === "confirmed" ? (
             <span className="text-[13px] text-emerald-700">

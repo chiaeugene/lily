@@ -14,7 +14,7 @@ export default async function SettingsPage() {
   return (
     <>
       <PageHeader title="Settings" sub="Customers, products, company details and the margins that drive the cascade" />
-      <div className="p-4 md:p-8 max-w-[1200px] w-full space-y-6">
+      <div className="p-4 md:p-8 max-w-[1200px] w-full mx-auto space-y-6">
         <CatalogClient customers={customers} products={products} />
         <SettingsClient companies={companies} products={products} rules={rules} />
       </div>

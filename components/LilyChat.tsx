@@ -15,9 +15,12 @@ export default function LilyChat() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Speak to Lily"
-        className="no-print fixed right-6 bottom-6 z-30 h-14 w-14 rounded-2xl bg-gradient-to-br from-primary-light to-primary shadow-pop grid place-items-center hover:-translate-y-0.5 active:scale-95 transition-transform"
+        className="no-print fixed right-6 bottom-6 z-30 flex items-center gap-2.5 pl-3 pr-4 h-14 rounded-full bg-surface border-2 border-primary text-primary-hover shadow-pop hover:-translate-y-0.5 hover:shadow-xl active:scale-95 transition-all"
       >
-        <LilyMark size={26} />
+        <span className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-light to-primary grid place-items-center shrink-0">
+          <LilyMark size={18} />
+        </span>
+        <span className="text-[14px] font-semibold whitespace-nowrap">Ask Lily</span>
       </button>
 
       {open && (

@@ -22,7 +22,7 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
         title={`Transaction ${tx.id}`}
         sub={`${tx.customerName} · ${tx.date} · one order → three linked invoices`}
       />
-      <div className="p-4 md:p-8 space-y-6">
+      <div className="p-4 md:p-8 space-y-6 max-w-[1300px] w-full mx-auto">
         {voided && (
           <div className="rounded-xl border border-loss/30 bg-loss-soft px-5 py-3 flex items-center gap-3">
             <span className="inline-flex items-center rounded-md bg-loss text-white text-[11px] font-bold px-2 py-0.5">VOID</span>

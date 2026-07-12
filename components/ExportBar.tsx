@@ -17,7 +17,7 @@ export default function ExportBar() {
   const [customer, setCustomer] = useState("");
   const [includeVoid, setIncludeVoid] = useState(false);
 
-  function url(format: "csv" | "pdf") {
+  function url(format: "csv" | "pdf" | "autocount" | "sql") {
     const p = new URLSearchParams();
     if (from) p.set("from", from);
     if (to) p.set("to", to);
@@ -53,9 +53,15 @@ export default function ExportBar() {
           className="rounded border-line" />
         Include void
       </label>
-      <div className="flex gap-2 ml-auto">
+      <div className="flex flex-wrap gap-2 ml-auto">
         <a href={url("csv")} className="inline-flex items-center gap-1.5 text-[13px] font-medium border border-line hover:bg-canvas rounded-lg px-3 py-2">
           <IconDownload size={15} /> CSV
+        </a>
+        <a href={url("autocount")} className="inline-flex items-center gap-1.5 text-[13px] font-medium border border-line hover:bg-canvas rounded-lg px-3 py-2">
+          <IconDownload size={15} /> AutoCount
+        </a>
+        <a href={url("sql")} className="inline-flex items-center gap-1.5 text-[13px] font-medium border border-line hover:bg-canvas rounded-lg px-3 py-2">
+          <IconDownload size={15} /> SQL Account
         </a>
         <a href={url("pdf")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[13px] font-medium bg-primary hover:bg-primary-hover text-white rounded-lg px-3 py-2">
           <IconDownload size={15} /> PDF bundle

@@ -15,7 +15,7 @@ function csvCell(v: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-// GET /api/export?from=yyyy-MM-dd&to=yyyy-MM-dd&company=3c&customer=foo&includeVoid=1&format=csv|pdf
+// GET /api/export?from=yyyy-MM-dd&to=yyyy-MM-dd&company=3c&customer=foo&includeVoid=1&format=csv|pdf|autocount|sql
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams;
   const from = q.get("from") ? new Date(q.get("from")!) : null;
@@ -23,7 +23,8 @@ export async function GET(req: NextRequest) {
   const company = (q.get("company") || "all") as CompanyKey | "all";
   const customer = (q.get("customer") || "").trim().toLowerCase();
   const includeVoid = q.get("includeVoid") === "1";
-  const format = q.get("format") === "pdf" ? "pdf" : "csv";
+  const formatParam = q.get("format");
+  const format = formatParam === "pdf" || formatParam === "autocount" || formatParam === "sql" ? formatParam : "csv";
 
   let txs = await repo.allTransactions();
 
@@ -61,6 +62,47 @@ export async function GET(req: NextRequest) {
       });
     }
     return new NextResponse(withAutoPrint(html), { headers: { "content-type": "text/html; charset=utf-8" } });
+  }
+
+  // AutoCount / SQL Account — one row per invoice LINE (not per invoice), the
+  // shape their sales-document batch import wizards expect. Column names
+  // follow each product's common import template; verify against your actual
+  // AutoCount/SQL Account version before a live import, since field names can
+  // vary slightly by module/version.
+  if (format === "autocount" || format === "sql") {
+    const debtorCode = (name: string) => name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "-").slice(0, 20) || "CASH";
+
+    const header =
+      format === "autocount"
+        ? ["Doc No", "Doc Date", "Doc Type", "Debtor Code", "Debtor Name", "Item Code", "Item Description", "UOM", "Qty", "Unit Price", "Disc", "Amount", "Tax Code", "Tax Amount", "Remark"]
+        : ["Invoice No", "Invoice Date", "Customer Code", "Customer Name", "Stock Code", "Stock Description", "UOM", "Quantity", "Unit Price", "Discount", "Net Amount", "Tax Code", "Tax Amount", "Remark"];
+
+    const lines = [header.map(csvCell).join(",")];
+    for (const { tx, inv } of rows) {
+      const remark = tx.status === "void" ? "VOID" : "";
+      for (const l of inv.lines) {
+        const cells =
+          format === "autocount"
+            ? [
+                inv.invoiceNo, tx.date, "Sales Invoice", debtorCode(inv.toName), inv.toName,
+                `ITEM-${l.item}`, l.description, l.uom, l.qty, fmt2(l.unitPrice), fmt2(l.disc), fmt2(l.total),
+                "", "0.00", remark,
+              ]
+            : [
+                inv.invoiceNo, tx.date, debtorCode(inv.toName), inv.toName,
+                `ITEM-${l.item}`, l.description, l.uom, l.qty, fmt2(l.unitPrice), fmt2(l.disc), fmt2(l.total),
+                "", "0.00", remark,
+              ];
+        lines.push(cells.map(csvCell).join(","));
+      }
+    }
+    const csv = lines.join("\r\n");
+    return new NextResponse(csv, {
+      headers: {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": `attachment; filename="invoices-${format}-export.csv"`,
+      },
+    });
   }
 
   // CSV

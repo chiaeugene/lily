@@ -49,7 +49,6 @@ export default async function Shell({ children }: { children: React.ReactNode })
             <span className={`h-1.5 w-1.5 rounded-full ${isDemoMode ? "bg-warn" : "bg-profit"}`} />
             <span className="text-muted">{isDemoMode ? "Demo mode" : "Live · Supabase"}</span>
           </div>
-          <div className="text-[11px] text-faint mt-1.5">Tien Ngai → Prim → 3C</div>
           <LogoutButton />
         </div>
       </aside>

@@ -108,7 +108,6 @@ export default function MobileNav({
             <span className={`h-1.5 w-1.5 rounded-full ${demoMode ? "bg-warn" : "bg-profit"}`} />
             <span className="text-muted">{demoMode ? "Demo mode" : "Live · Supabase"}</span>
           </div>
-          <div className="text-[11px] text-faint mt-1.5">Tien Ngai → Prim → 3C</div>
           <LogoutButton />
         </div>
       </aside>

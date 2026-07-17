@@ -190,3 +190,48 @@ export interface PurchaseOrder {
   createdAt: string;
   confirmedAt?: string;
 }
+
+// ── Payroll ────────────────────────────────────────────────────────────────
+// Calculates + records pay; never moves money. EPF/SOCSO/EIS use standard
+// flat-rate approximations (see lib/payroll.ts) — verify against the official
+// KWSP/PERKESO tables before relying on these for a real payroll run.
+
+export interface Employee {
+  id: string;
+  name: string;
+  icNo?: string;
+  position?: string;
+  bankName?: string;
+  bankAccount?: string;
+  epfNo?: string;
+  socsoNo?: string;
+  basicSalary: number;
+  active: boolean;
+}
+
+export interface Payslip {
+  id: string;
+  payrollRunId: string;
+  employeeId: string;
+  employeeName: string;
+  basicSalary: number;
+  allowances: number;
+  deductions: number;
+  epfEmployee: number;
+  epfEmployer: number;
+  socsoEmployee: number;
+  socsoEmployer: number;
+  eisEmployee: number;
+  eisEmployer: number;
+  pcb: number; // manual entry — not calculated
+  netPay: number;
+  paidStatus: PaidStatus;
+  paidAt?: string;
+}
+
+export interface PayrollRun {
+  id: string; // "PR-2607"
+  month: string; // "2026-07"
+  createdAt: string;
+  payslips: Payslip[];
+}

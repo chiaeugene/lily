@@ -10,13 +10,19 @@ export default function MarkPaidButton({ transactionId, paid }: { transactionId:
 
   async function toggle() {
     setBusy(true);
-    await fetch(`/api/transaction/${transactionId}/paid`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ paid: !paid }),
-    });
-    setBusy(false);
-    router.refresh();
+    try {
+      const res = await fetch(`/api/transaction/${transactionId}/paid`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paid: !paid }),
+      });
+      if (!res.ok) throw new Error();
+      router.refresh();
+    } catch {
+      alert("Couldn't update payment status — please try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (paid) {

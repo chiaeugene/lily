@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { IconDownload } from "@/components/icons";
+import { COMPANY_LABELS } from "@/lib/companies";
 
 const COMPANY_OPTS = [
   { value: "all", label: "All companies" },
-  { value: "tien_ngai", label: "Tien Ngai" },
-  { value: "prim", label: "Prim Paper" },
-  { value: "3c", label: "3C Industries" },
+  { value: "tien_ngai", label: COMPANY_LABELS.tien_ngai },
+  { value: "prim", label: COMPANY_LABELS.prim },
+  { value: "3c", label: COMPANY_LABELS["3c"] },
 ];
 
 export default function ExportBar() {

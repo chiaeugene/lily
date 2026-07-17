@@ -7,6 +7,7 @@ import VoidButton from "@/components/VoidButton";
 import MarkPaidButton from "@/components/MarkPaidButton";
 import { fmt2 } from "@/lib/money";
 import { dueDate } from "@/lib/payment";
+import { COMPANY_LABELS } from "@/lib/companies";
 
 export default async function TransactionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -93,8 +94,9 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
         </div>
 
         <p className="text-xs text-slate-400">
-          Flow: <b>Tien Ngai Machinery</b> bills <b>Prim Paper</b> · Prim bills <b>3C Industries</b> · 3C bills{" "}
-          <b>{tx.customerName}</b>. Same goods &amp; quantity; price rises at each tier per the margin rules.
+          Flow: <b>{COMPANY_LABELS.tien_ngai}</b> bills <b>{COMPANY_LABELS.prim}</b> · {COMPANY_LABELS.prim} bills{" "}
+          <b>{COMPANY_LABELS["3c"]}</b> · {COMPANY_LABELS["3c"]} bills <b>{tx.customerName}</b>. Same goods &amp;
+          quantity; price rises at each tier per the margin rules.
         </p>
       </div>
     </>

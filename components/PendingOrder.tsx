@@ -3,15 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Order, CompanyKey } from "@/lib/types";
-
-// Chain order — must match lib/companies.ts CHAIN
-const CHAIN: CompanyKey[] = ["tien_ngai", "prim", "3c"];
-
-const COMPANY_LABELS: Record<CompanyKey, string> = {
-  tien_ngai: "Tien Ngai Machinery",
-  prim: "Prim Paper Trading",
-  "3c": "3C Industries",
-};
+import { CHAIN, COMPANY_LABELS } from "@/lib/companies";
 
 // Who each company naturally bills (next in chain; 3C bills the customer)
 function billsTo(company: CompanyKey, customerName: string): string {
@@ -52,9 +44,14 @@ export default function PendingOrder({ order }: { order: Order }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ customerName, lines, companies }),
     });
-    const data = await res.json();
-    if (data.transactionId) router.push(`/transaction/${data.transactionId}`);
-    else router.refresh();
+    const data = await res.json().catch(() => null);
+    if (data?.transactionId) {
+      router.push(`/transaction/${data.transactionId}`);
+    } else {
+      setBusy("");
+      alert(data?.error || "Couldn't verify this order — please try again.");
+      router.refresh();
+    }
   }
 
   async function reject() {

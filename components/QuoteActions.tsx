@@ -50,6 +50,8 @@ export default function QuoteActions({ id, status }: { id: string; status: strin
       router.refresh();
     } else {
       setBusy(false);
+      const body = await res.json().catch(() => null);
+      alert(body?.error || "Couldn't accept this quotation — please try again.");
     }
   }
 

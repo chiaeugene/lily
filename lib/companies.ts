@@ -82,6 +82,14 @@ export const COMPANIES: Record<CompanyKey, Company> =
  */
 export const CHAIN: CompanyKey[] = ["tien_ngai", "prim", "3c"];
 
+// Short, UI-friendly display labels (vs. the full legal `.name` in COMPANIES above).
+// Single source of truth — import this instead of re-declaring per-component maps.
+export const COMPANY_LABELS: Record<CompanyKey, string> = {
+  tien_ngai: "Tien Ngai Machinery",
+  prim: "Prim Paper Trading",
+  "3c": "3C Industries",
+};
+
 export const STANDARD_NOTES = [
   "All cheques should be crossed and made payable to {COMPANY}",
   "Products sold & deposits paid are strictly not returnable or refundable",

@@ -12,14 +12,20 @@ export default function VoidButton({ transactionId }: { transactionId: string })
 
   async function confirmVoid() {
     setBusy(true);
-    await fetch(`/api/transaction/${transactionId}/void`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ reason }),
-    });
-    setBusy(false);
-    setOpen(false);
-    router.refresh();
+    try {
+      const res = await fetch(`/api/transaction/${transactionId}/void`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) throw new Error();
+      setOpen(false);
+      router.refresh();
+    } catch {
+      alert("Couldn't void this transaction — please try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

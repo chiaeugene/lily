@@ -50,6 +50,8 @@ export default function PoActions({ id, status }: { id: string; status: string }
       router.refresh();
     } else {
       setBusy("");
+      const body = await res.json().catch(() => null);
+      alert(body?.error || "Couldn't confirm this PO — please try again.");
     }
   }
 
@@ -61,6 +63,8 @@ export default function PoActions({ id, status }: { id: string; status: string }
       router.refresh();
     } else {
       setBusy("");
+      const body = await res.json().catch(() => null);
+      alert(body?.error || "Couldn't cancel this PO — please try again.");
     }
   }
 

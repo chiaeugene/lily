@@ -1,6 +1,7 @@
 import { fmt2 } from "@/lib/money";
 import type { Transaction } from "@/lib/types";
 import { paymentState, daysOverdue } from "@/lib/payment";
+import { COMPANY_LABELS } from "@/lib/companies";
 
 export function PageHeader({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) {
   return (
@@ -86,9 +87,9 @@ export function Card({
 }
 
 const COMPANY_STYLE: Record<string, { cls: string; label: string }> = {
-  prim: { cls: "bg-amber-50 text-amber-700 ring-amber-200", label: "Prim Paper" },
-  "3c": { cls: "bg-violet-50 text-violet-700 ring-violet-200", label: "3C Industries" },
-  tien_ngai: { cls: "bg-blue-50 text-blue-700 ring-blue-200", label: "Tien Ngai" },
+  prim: { cls: "bg-amber-50 text-amber-700 ring-amber-200", label: COMPANY_LABELS.prim },
+  "3c": { cls: "bg-violet-50 text-violet-700 ring-violet-200", label: COMPANY_LABELS["3c"] },
+  tien_ngai: { cls: "bg-blue-50 text-blue-700 ring-blue-200", label: COMPANY_LABELS.tien_ngai },
 };
 
 export function CompanyBadge({ company }: { company: string }) {

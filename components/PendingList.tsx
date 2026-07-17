@@ -6,13 +6,8 @@ import type { Order, CompanyKey } from "@/lib/types";
 import { ConfidencePill } from "@/components/ui";
 import { IconChevron, IconCheck, IconX, IconSparkle } from "@/components/icons";
 import { fmt2 } from "@/lib/money";
+import { CHAIN, COMPANY_LABELS } from "@/lib/companies";
 
-const CHAIN: CompanyKey[] = ["tien_ngai", "prim", "3c"];
-const COMPANY_LABELS: Record<CompanyKey, string> = {
-  tien_ngai: "Tien Ngai Machinery",
-  prim: "Prim Paper Trading",
-  "3c": "3C Industries",
-};
 function billsTo(company: CompanyKey, customerName: string, active: CompanyKey[]): string {
   const myIdx = active.indexOf(company);
   const next = active[myIdx + 1];
@@ -139,12 +134,13 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ customerName, date, terms, termsDays, lines, companies, yourRef, invoiceNoOverrides }),
     });
-    const data = await res.json();
-    if (data.transactionId) {
+    const data = await res.json().catch(() => null);
+    if (data?.transactionId) {
       router.push(`/transaction/${data.transactionId}`);
       router.refresh(); // re-render the persistent layout so the sidebar badge updates
     } else {
       setBusy("");
+      alert(data?.error || "Couldn't verify this order — please try again.");
       router.refresh();
     }
   }

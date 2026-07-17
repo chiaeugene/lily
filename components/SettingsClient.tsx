@@ -48,11 +48,16 @@ export default function SettingsClient({
     const current = rule(productId, layer) ?? { productId, layer, type: "rm_per_unit" as MarginType, value: 0 };
     const next = { ...current, ...patch } as MarginRule;
     setRules((rs) => [...rs.filter((r) => !(r.productId === productId && r.layer === layer)), next]);
-    await fetch("/api/margins", {
+    const res = await fetch("/api/margins", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(next),
     });
+    if (!res.ok) {
+      // roll back the optimistic update
+      setRules((rs) => [...rs.filter((r) => !(r.productId === productId && r.layer === layer)), current]);
+      alert("Couldn't save that margin — please try again.");
+    }
   }
 
   return (

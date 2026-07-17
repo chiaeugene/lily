@@ -6,7 +6,7 @@
 import { store } from "./store";
 import { buildCascade } from "./cascade";
 import { formatInvoiceNo } from "./invoiceNumber";
-import { COMPANIES, CHAIN } from "./companies";
+import { COMPANIES, CHAIN, ensureCompaniesHydrated } from "./companies";
 import { getSupabaseAdmin } from "./supabase";
 import type {
   Customer,
@@ -26,6 +26,10 @@ import type {
 
 export { isDemoMode } from "./env";
 import { isDemoMode } from "./env";
+
+function cryptoRandomToken(): string {
+  return crypto.randomUUID().replace(/-/g, "");
+}
 
 // DB `tier` column stores "1", "2" (layer numbers). Legacy rows store company
 // names ("3c", "prim") — map those transparently so no DB migration is needed.
@@ -204,13 +208,19 @@ async function log(actor: string, action: string, detail: string) {
 // ── repo ──────────────────────────────────────────────────────────────────────
 
 export const repo = {
-  // ── companies (always from the in-memory COMPANIES object) ────────────────
-  listCompanies: async (): Promise<Company[]> => CHAIN.map((k) => COMPANIES[k]),
-  getCompany: async (key: CompanyKey): Promise<Company> => COMPANIES[key],
+  // ── companies (hardcoded defaults, overlaid with any saved Supabase edits) ─
+  async listCompanies(): Promise<Company[]> {
+    await ensureCompaniesHydrated();
+    return CHAIN.map((k) => COMPANIES[k]);
+  },
+  async getCompany(key: CompanyKey): Promise<Company> {
+    await ensureCompaniesHydrated();
+    return COMPANIES[key];
+  },
 
   async updateCompany(key: CompanyKey, patch: Partial<Company>, actor = "admin") {
     const allowed: (keyof Company)[] = [
-      "name", "regNo", "tinNo", "formerlyKnownAs", "addressLines", "tel", "email", "banks",
+      "name", "regNo", "tinNo", "formerlyKnownAs", "addressLines", "tel", "email", "banks", "paymentQrDataUrl",
     ];
     // always update the in-memory object so the current session reflects it
     const target = COMPANIES[key] as unknown as Record<string, unknown>;
@@ -230,6 +240,7 @@ export const repo = {
       if ("tel" in patch) upsert.tel = patch.tel;
       if ("email" in patch) upsert.email = patch.email;
       if ("banks" in patch) upsert.banks = patch.banks;
+      if ("paymentQrDataUrl" in patch) upsert.payment_qr_data_url = patch.paymentQrDataUrl;
       await db.from("companies").upsert(upsert);
     }
     await log(actor, "company.update", `${key}: ${Object.keys(patch).join(", ")}`);
@@ -245,7 +256,38 @@ export const repo = {
       addressLines: r.address_lines ?? [],
       tel: r.tel ?? undefined,
       fax: r.fax ?? undefined,
+      portalToken: r.portal_token ?? undefined,
     }));
+  },
+
+  // Returns (and creates if missing) the customer's read-only portal token.
+  async ensureCustomerPortalToken(id: string): Promise<string> {
+    if (isDemoMode) {
+      const c = store.customers.find((x) => x.id === id);
+      if (!c) throw new Error("customer not found");
+      if (!c.portalToken) c.portalToken = cryptoRandomToken();
+      return c.portalToken;
+    }
+    const db = getSupabaseAdmin();
+    const { data } = await db.from("customers").select("portal_token").eq("id", id).maybeSingle();
+    if (data?.portal_token) return data.portal_token;
+    const token = cryptoRandomToken();
+    await db.from("customers").update({ portal_token: token }).eq("id", id);
+    return token;
+  },
+
+  async getCustomerByPortalToken(token: string): Promise<Customer | undefined> {
+    if (isDemoMode) return store.customers.find((c) => c.portalToken === token);
+    const { data } = await getSupabaseAdmin().from("customers").select("*").eq("portal_token", token).maybeSingle();
+    if (!data) return undefined;
+    return {
+      id: data.id,
+      name: data.name,
+      addressLines: data.address_lines ?? [],
+      tel: data.tel ?? undefined,
+      fax: data.fax ?? undefined,
+      portalToken: data.portal_token ?? undefined,
+    };
   },
 
   async listProducts(): Promise<Product[]> {

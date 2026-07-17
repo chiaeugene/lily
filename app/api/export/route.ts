@@ -3,7 +3,7 @@ import { repo } from "@/lib/repo";
 import { invoiceHtml } from "@/lib/invoiceHtml";
 import { bundleHtml, renderPdf, withAutoPrint } from "@/lib/pdf";
 import { fmt2 } from "@/lib/money";
-import { COMPANIES } from "@/lib/companies";
+import { COMPANIES, ensureCompaniesHydrated } from "@/lib/companies";
 import type { CompanyKey } from "@/lib/types";
 
 function parseDDMMYYYY(s: string): Date | null {
@@ -17,6 +17,7 @@ function csvCell(v: string | number): string {
 
 // GET /api/export?from=yyyy-MM-dd&to=yyyy-MM-dd&company=3c&customer=foo&includeVoid=1&format=csv|pdf|autocount|sql
 export async function GET(req: NextRequest) {
+  await ensureCompaniesHydrated();
   const q = req.nextUrl.searchParams;
   const from = q.get("from") ? new Date(q.get("from")!) : null;
   const to = q.get("to") ? new Date(`${q.get("to")!}T23:59:59`) : null;

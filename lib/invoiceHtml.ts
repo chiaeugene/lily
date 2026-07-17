@@ -5,16 +5,12 @@ import { fmt2, fmtUnit } from "./money";
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-// A small deterministic QR-style placeholder (real QR can be swapped in later).
-function fauxQr(): string {
-  let cells = "";
-  const seed = 7;
-  for (let y = 0; y < 9; y++)
-    for (let x = 0; x < 9; x++) {
-      const on = ((x * 13 + y * 7 + seed) % 3 === 0) || x === 0 || y === 0 || x === 8 || y === 8;
-      if (on) cells += `<rect x="${x * 6}" y="${y * 6}" width="6" height="6"/>`;
-    }
-  return `<svg viewBox="0 0 54 54" width="62" height="62">${cells}</svg>`;
+// Renders the company's real bank-issued payment QR (uploaded in Settings), if
+// any. Deliberately renders nothing when unset — a decorative fake QR would
+// look scannable but pay no one, which is worse than no QR at all.
+function paymentQr(dataUrl: string | undefined): string {
+  if (!dataUrl) return "";
+  return `<img src="${dataUrl}" width="62" height="62" alt="Payment QR" style="display:block;" />`;
 }
 
 /** Full standalone A4 invoice HTML for one company skin. */
@@ -35,7 +31,7 @@ export function invoiceHtml(
   const isQuote = label === "QUOTATION";
   const isPo = label === "PURCHASE ORDER";
   const docWord = isQuote ? "Quotation" : isPo ? "Purchase Order" : "Invoice";
-  const showQr = c.showQr && !opts.hideQr;
+  const showQr = c.showQr && !opts.hideQr && !!c.paymentQrDataUrl;
   const showSignature = c.showAuthorisedSignature || !!opts.forceSignature;
 
   const header = `
@@ -43,7 +39,7 @@ export function invoiceHtml(
       ${c.showLogo ? `<div class="logo">${esc(c.logoText ?? "")}</div>` : ""}
       ${
         (showQr && !c.qrInFooter) || c.showLhdnLink
-          ? `<div class="hdr-right">${showQr && !c.qrInFooter ? fauxQr() : ""}${
+          ? `<div class="hdr-right">${showQr && !c.qrInFooter ? paymentQr(c.paymentQrDataUrl) : ""}${
               c.showLhdnLink ? `<div class="lhdn">LHDN Validated<br/>Link</div>` : ""
             }</div>`
           : ""
@@ -94,7 +90,7 @@ export function invoiceHtml(
 
   const footer = `
     <div class="foot">
-      ${showQr && c.qrInFooter ? `<div class="foot-qr">${fauxQr()}</div>` : ""}
+      ${showQr && c.qrInFooter ? `<div class="foot-qr">${paymentQr(c.paymentQrDataUrl)}</div>` : ""}
       <div class="foot-co">${esc(c.name)}</div>
       ${
         isPo

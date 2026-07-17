@@ -3,9 +3,11 @@ import { repo } from "@/lib/repo";
 import { getCurrentActor } from "@/lib/staff";
 import { invoiceHtml } from "@/lib/invoiceHtml";
 import { buildPoInvoice } from "@/lib/po";
+import { ensureCompaniesHydrated } from "@/lib/companies";
 
 // Returns the standalone, printable PURCHASE ORDER HTML (Tien Ngai skin).
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await ensureCompaniesHydrated();
   const { id } = await params;
   const po = await repo.getPurchaseOrder(id);
   if (!po) return NextResponse.json({ error: "purchase order not found" }, { status: 404 });

@@ -238,6 +238,7 @@ function CompanyEditor({ company }: { company: Company }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [qr, setQr] = useState<string | undefined>(company.paymentQrDataUrl);
   const [form, setForm] = useState({
     name: company.name,
     regNo: company.regNo,
@@ -247,6 +248,13 @@ function CompanyEditor({ company }: { company: Company }) {
     email: company.email,
     banks: company.banks.map((b) => `${b.bank} | ${b.account}`).join("\n"),
   });
+
+  function onQrFile(file: File | undefined) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setQr(reader.result as string);
+    reader.readAsDataURL(file);
+  }
 
   async function save() {
     setSaving(true);
@@ -265,6 +273,7 @@ function CompanyEditor({ company }: { company: Company }) {
           .map((l) => l.split("|").map((s) => s.trim()))
           .filter((p) => p[0])
           .map(([bank, account]) => ({ bank, account: account ?? "" })),
+        paymentQrDataUrl: qr,
       }),
     });
     setSaving(false);
@@ -310,6 +319,16 @@ function CompanyEditor({ company }: { company: Company }) {
               </div>
             ))}
           </div>
+          <div className="pt-2 flex items-center gap-2">
+            {company.paymentQrDataUrl ? (
+              <>
+                <img src={company.paymentQrDataUrl} alt="Payment QR" className="h-10 w-10 rounded border border-line" />
+                <span className="text-[12px] text-profit">Payment QR set — shown on invoices</span>
+              </>
+            ) : (
+              <span className="text-[12px] text-faint">No payment QR uploaded — invoices show no QR</span>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-2.5">
@@ -324,6 +343,25 @@ function CompanyEditor({ company }: { company: Company }) {
             <Inp label="Email" v={form.email} on={(v) => setForm({ ...form, email: v })} />
           </div>
           <Txt label="Banks (Bank | Account)" v={form.banks} on={(v) => setForm({ ...form, banks: v })} />
+          <label className="block">
+            <span className="block text-[11px] uppercase tracking-wide text-faint mb-1">
+              Payment QR (your bank&apos;s DuitNow QR image — shown on invoices)
+            </span>
+            <div className="flex items-center gap-3">
+              {qr && <img src={qr} alt="Payment QR preview" className="h-12 w-12 rounded border border-line" />}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => onQrFile(e.target.files?.[0])}
+                className="text-[12px]"
+              />
+              {qr && (
+                <button type="button" onClick={() => setQr(undefined)} className="text-[12px] text-loss hover:underline">
+                  Remove
+                </button>
+              )}
+            </div>
+          </label>
         </div>
       )}
     </Card>

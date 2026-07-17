@@ -71,9 +71,47 @@ const DEFAULT_COMPANIES: Record<CompanyKey, Company> = {
   },
 };
 
-const g = globalThis as unknown as { __lilyCompanies?: Record<CompanyKey, Company> };
+const g = globalThis as unknown as {
+  __lilyCompanies?: Record<CompanyKey, Company>;
+  __lilyCompaniesHydrating?: Promise<void>;
+};
 export const COMPANIES: Record<CompanyKey, Company> =
   g.__lilyCompanies ?? (g.__lilyCompanies = structuredClone(DEFAULT_COMPANIES));
+
+// COMPANIES starts out as the hardcoded defaults above. Any edit made from
+// Settings is persisted to Supabase, but nothing else in the app re-reads it —
+// this backfills those saved edits into COMPANIES once per server process so
+// they survive a restart/redeploy instead of silently reverting to defaults.
+// Fire-and-forget on first import; callers that need certainty can await it.
+export function ensureCompaniesHydrated(): Promise<void> {
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL === undefined) return Promise.resolve();
+  if (!g.__lilyCompaniesHydrating) {
+    g.__lilyCompaniesHydrating = (async () => {
+      try {
+        const { getSupabaseAdmin } = await import("./supabase");
+        const { data } = await getSupabaseAdmin().from("companies").select("*");
+        for (const row of data ?? []) {
+          const key = row.key as CompanyKey;
+          const c = COMPANIES[key] as unknown as Record<string, unknown> | undefined;
+          if (!c) continue;
+          if (row.name) c.name = row.name;
+          if (row.reg_no) c.regNo = row.reg_no;
+          if (row.tin_no) c.tinNo = row.tin_no;
+          if (row.formerly_known_as) c.formerlyKnownAs = row.formerly_known_as;
+          if (row.address_lines) c.addressLines = row.address_lines;
+          if (row.tel) c.tel = row.tel;
+          if (row.email) c.email = row.email;
+          if (row.banks) c.banks = row.banks;
+          if (row.payment_qr_data_url) c.paymentQrDataUrl = row.payment_qr_data_url;
+        }
+      } catch {
+        g.__lilyCompaniesHydrating = undefined; // allow a retry on the next call
+      }
+    })();
+  }
+  return g.__lilyCompaniesHydrating;
+}
+void ensureCompaniesHydrated();
 
 /**
  * Cascade order, ORIGIN first -> CUSTOMER-FACING last.

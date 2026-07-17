@@ -26,6 +26,9 @@ export interface Company {
   logoText?: string;
   showQr: boolean;
   qrInFooter?: boolean; // Tien Ngai prints its QR bottom-right (by the footer), not in the header
+  /** A real bank-issued DuitNow/payment QR image (data URL), uploaded in Settings.
+   *  Only rendered when set — no decorative fake QR is ever shown on a real invoice. */
+  paymentQrDataUrl?: string;
   showLhdnLink: boolean;
   showRoundingRow: boolean;
   showAuthorisedSignature: boolean;
@@ -37,6 +40,8 @@ export interface Customer {
   addressLines: string[];
   tel?: string;
   fax?: string;
+  /** Opaque random token for the customer's read-only self-service portal link. */
+  portalToken?: string;
 }
 
 export interface Product {

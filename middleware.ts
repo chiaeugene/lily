@@ -6,12 +6,16 @@ import { verifySessionCookie } from "./lib/session";
 //  - "/" the marketing landing page
 //  - /login and /api/auth (the gate itself)
 //  - /api/telegram (Telegram's webhook posts without a cookie)
+//  - /client/[token] the customer self-service portal (its own opaque-token
+//    auth, not staff login — a customer should never need a Lily passcode)
 function isPublic(pathname: string) {
   return (
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/telegram")
+    pathname.startsWith("/api/telegram") ||
+    pathname.startsWith("/client/") ||
+    pathname.startsWith("/api/client/")
   );
 }
 

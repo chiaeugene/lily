@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Customer, Product } from "@/lib/types";
 import { Card } from "@/components/ui";
-import { IconPencil, IconCheck, IconX } from "@/components/icons";
+import { IconPencil, IconCheck, IconX, IconShare } from "@/components/icons";
 
 export default function CatalogClient({
   customers,
@@ -101,6 +101,17 @@ function CustomerRow({
     setBusy(false);
     onDone();
   }
+  async function copyPortalLink() {
+    const res = await fetch(`/api/customers/${customer.id}/portal-link`, { method: "POST" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.token) {
+      alert("Couldn't create a portal link — please try again.");
+      return;
+    }
+    const url = `${window.location.origin}/client/${data.token}`;
+    await navigator.clipboard.writeText(url).catch(() => {});
+    alert(`Portal link copied:\n${url}`);
+  }
 
   if (!editing) {
     return (
@@ -112,6 +123,9 @@ function CustomerRow({
           )}
           {customer.tel && <div className="text-[12px] text-faint">Tel: {customer.tel}</div>}
         </div>
+        <button onClick={copyPortalLink} className="text-muted hover:text-primary p-1" aria-label="Copy portal link" title="Copy this customer's portal link">
+          <IconShare size={15} />
+        </button>
         <button onClick={() => setEditing(true)} className="text-muted hover:text-primary p-1" aria-label="Edit">
           <IconPencil size={15} />
         </button>

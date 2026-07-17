@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPayrollRun, listEmployees } from "@/lib/payroll";
 import { payslipHtml } from "@/lib/payslipHtml";
 import { renderPdf, withAutoPrint } from "@/lib/pdf";
-import { COMPANIES } from "@/lib/companies";
+import { COMPANIES, ensureCompaniesHydrated } from "@/lib/companies";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await ensureCompaniesHydrated();
   const { id } = await params; // payslip id, format "<runId>-<employeeId>"
   const runId = id.split("-").slice(0, 2).join("-"); // "PR-2607"
   const run = await getPayrollRun(runId);

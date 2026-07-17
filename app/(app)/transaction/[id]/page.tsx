@@ -5,8 +5,9 @@ import { PageHeader, CompanyBadge, PaymentStatusChip } from "@/components/ui";
 import { IconDownload } from "@/components/icons";
 import VoidButton from "@/components/VoidButton";
 import MarkPaidButton from "@/components/MarkPaidButton";
+import ReminderButton from "@/components/ReminderButton";
 import { fmt2 } from "@/lib/money";
-import { dueDate } from "@/lib/payment";
+import { dueDate, paymentState, daysOverdue } from "@/lib/payment";
 import { COMPANY_LABELS } from "@/lib/companies";
 
 export default async function TransactionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,6 +17,8 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
 
   const voided = tx.status === "void";
   const due = dueDate(tx);
+  const custInvoice = tx.invoices.find((i) => i.toName === tx.customerName) ?? tx.invoices[tx.invoices.length - 1];
+  const unpaid = !voided && paymentState(tx) !== "paid";
 
   return (
     <>
@@ -54,6 +57,16 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
           )}
           <div className="ml-auto self-center flex items-center gap-2">
             {!voided && <MarkPaidButton transactionId={tx.id} paid={tx.paidStatus === "paid"} />}
+            {unpaid && custInvoice && (
+              <ReminderButton
+                tel={custInvoice.toTel}
+                customerName={tx.customerName}
+                invoiceNo={custInvoice.invoiceNo}
+                amount={fmt2(tx.grandTotalSell)}
+                dueDateStr={due?.toLocaleDateString("en-MY")}
+                daysOverdue={daysOverdue(tx)}
+              />
+            )}
             {!voided && <VoidButton transactionId={tx.id} />}
             <Link
               href={`/api/transaction/${tx.id}/pdf`}

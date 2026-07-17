@@ -1,14 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { LilyMark } from "@/components/Logo";
 import { IconX } from "@/components/icons";
 
-// UI shell only — there is no AI backend wired up yet. It says so honestly
-// rather than faking a "smart" response, since this is a real tool people
-// make real business decisions with.
+type Message = { role: "user" | "assistant"; content: string };
+
+const GREETING: Message = {
+  role: "assistant",
+  content:
+    "Hi — ask me about orders, transactions, or customers, e.g. “what's overdue” or “summarize Goodwill Marketing”. I only read your real data, I can't make changes.",
+};
+
 export default function LilyChat() {
   const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([GREETING]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, busy]);
+
+  async function send() {
+    const text = input.trim();
+    if (!text || busy) return;
+    setError("");
+    setInput("");
+    const next = [...messages, { role: "user" as const, content: text }];
+    setMessages(next);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/lily-chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages: next }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Something went wrong");
+      setMessages([...next, { role: "assistant", content: data.reply }]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't reach Lily — try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
@@ -33,8 +71,8 @@ export default function LilyChat() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-ink">Speak to Lily</div>
-                <div className="text-[11px] text-warn flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-warn" /> AI backend not connected yet
+                <div className="text-[11px] text-profit flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-profit" /> Connected · read-only
                 </div>
               </div>
               <button onClick={() => setOpen(false)} aria-label="Close" className="text-faint hover:text-ink p-1.5 rounded-lg hover:bg-surface-2">
@@ -42,25 +80,58 @@ export default function LilyChat() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              <div className="flex gap-2.5">
-                <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary-light to-primary text-white grid place-items-center shrink-0">
-                  <LilyMark size={15} mono />
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.map((m, i) => (
+                <div key={i} className={`flex gap-2.5 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
+                  {m.role === "assistant" && (
+                    <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary-light to-primary text-white grid place-items-center shrink-0">
+                      <LilyMark size={15} mono />
+                    </div>
+                  )}
+                  <div
+                    className={`rounded-xl px-3.5 py-2.5 text-[13px] leading-relaxed max-w-[88%] whitespace-pre-wrap ${
+                      m.role === "user"
+                        ? "bg-primary text-white rounded-tr-sm"
+                        : "bg-surface-2 text-ink rounded-tl-sm"
+                    }`}
+                  >
+                    {m.content}
+                  </div>
                 </div>
-                <div className="bg-surface-2 rounded-xl rounded-tl-sm px-3.5 py-2.5 text-[13px] leading-relaxed text-ink max-w-[88%]">
-                  Hi — this panel is ready, but I&apos;m not hooked up to your real order and invoice data yet.
-                  <br /><br />
-                  When that&apos;s built, I&apos;ll be able to answer things like &ldquo;what&apos;s overdue&rdquo; or
-                  &ldquo;summarize Goodwill Marketing&rdquo; by querying your live Supabase data directly through Claude
-                  with tool-use — not guessing, not canned replies.
+              ))}
+              {busy && (
+                <div className="flex gap-2.5">
+                  <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary-light to-primary text-white grid place-items-center shrink-0">
+                    <LilyMark size={15} mono />
+                  </div>
+                  <div className="bg-surface-2 rounded-xl rounded-tl-sm px-3.5 py-2.5 text-[13px] text-muted">
+                    Checking…
+                  </div>
                 </div>
-              </div>
+              )}
+              {error && <p className="text-[12px] text-loss text-center">{error}</p>}
             </div>
 
             <div className="p-3 border-t border-line">
-              <div className="flex items-center gap-2 bg-surface-2 border border-line rounded-xl px-3 py-2.5 opacity-60 cursor-not-allowed">
-                <span className="text-[13px] text-faint flex-1">Coming soon — ask about any order, customer, or trend…</span>
-              </div>
+              <form
+                onSubmit={(e) => { e.preventDefault(); send(); }}
+                className="flex items-center gap-2 bg-surface-2 border border-line rounded-xl px-3 py-2 focus-within:border-primary"
+              >
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask about any order, customer, or trend…"
+                  disabled={busy}
+                  className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-faint disabled:opacity-60"
+                />
+                <button
+                  type="submit"
+                  disabled={busy || !input.trim()}
+                  className="text-[13px] font-semibold text-primary hover:text-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Send
+                </button>
+              </form>
             </div>
           </div>
         </div>

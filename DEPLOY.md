@@ -63,13 +63,14 @@ git push -u origin main
    ```
    LILY_PASSCODE=870333
    LILY_AUTH_TOKEN=<any-long-random-string>
-   ANTHROPIC_API_KEY=<your key>            # enables AI order parsing
+   ANTHROPIC_API_KEY=<your key>            # enables AI order parsing + Ask Lily chat
    CLAUDE_PARSER_MODEL=claude-haiku-4-5-20251001
+   LILY_CHAT_MODEL=claude-sonnet-5         # used by the Ask Lily chat panel
    TELEGRAM_BOT_TOKEN=<from BotFather>
    TELEGRAM_ALLOWED_USER_IDS=<your id>     # optional
    TELEGRAM_WEBHOOK_SECRET=<any-random-slug>
    NEXT_PUBLIC_APP_URL=https://<your-app>.onrender.com
-   NEXT_PUBLIC_SUPABASE_URL=<from Supabase>      # once persistence is wired
+   NEXT_PUBLIC_SUPABASE_URL=<from Supabase>
    NEXT_PUBLIC_SUPABASE_ANON_KEY=<from Supabase>
    SUPABASE_SERVICE_ROLE_KEY=<from Supabase>
    ```

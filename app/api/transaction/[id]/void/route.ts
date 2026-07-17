@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { repo } from "@/lib/repo";
+import { getCurrentActor } from "@/lib/staff";
 
 // POST { reason } -> mark a transaction (and its 3 invoices) VOID.
 // The invoice numbers are kept (no gap in the legal series); the transaction is
@@ -12,6 +13,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const body = await req.json().catch(() => ({}));
   const reason = typeof body.reason === "string" ? body.reason : "";
-  await repo.voidTransaction(id, reason);
+  await repo.voidTransaction(id, reason, await getCurrentActor());
   return NextResponse.json({ ok: true });
 }

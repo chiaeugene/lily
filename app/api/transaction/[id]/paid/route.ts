@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { repo } from "@/lib/repo";
+import { getCurrentActor } from "@/lib/staff";
 
 // POST { paid: boolean } -> mark a transaction paid or unpaid.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -9,6 +10,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const body = await req.json().catch(() => ({}));
   const paid = body.paid !== false; // default true — this endpoint is "mark paid"
-  await repo.markTransactionPaid(id, paid);
+  await repo.markTransactionPaid(id, paid, await getCurrentActor());
   return NextResponse.json({ ok: true });
 }

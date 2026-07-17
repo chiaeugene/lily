@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { findStaffByPasscode } from "@/lib/staff";
+import { signStaffId } from "@/lib/session";
 
-// Simple passcode gate for this internal tool. Override via env in production.
-const PASSCODE = process.env.LILY_PASSCODE || "870333";
-const TOKEN = process.env.LILY_AUTH_TOKEN || "lily-authed";
 const COOKIE = "lily_auth";
 
-// POST { code } -> verify passcode, set auth cookie.
+// POST { code } -> look up the staff member by their personal passcode,
+// verify, set a signed auth cookie carrying who they are.
 export async function POST(req: NextRequest) {
   const { code } = await req.json().catch(() => ({ code: "" }));
-  if (String(code) !== PASSCODE) {
+  const staff = await findStaffByPasscode(String(code ?? ""));
+  if (!staff) {
     return NextResponse.json({ error: "Incorrect passcode" }, { status: 401 });
   }
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(COOKIE, TOKEN, {
+  const token = await signStaffId(staff.id);
+  const res = NextResponse.json({ ok: true, name: staff.name });
+  res.cookies.set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

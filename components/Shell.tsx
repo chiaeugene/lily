@@ -1,4 +1,5 @@
 import { repo, isDemoMode } from "@/lib/repo";
+import { getCurrentActor } from "@/lib/staff";
 import { LilyLogo } from "@/components/Logo";
 import NavItem from "@/components/NavItem";
 import LogoutButton from "@/components/LogoutButton";
@@ -26,6 +27,7 @@ const NAV = [
 
 export default async function Shell({ children }: { children: React.ReactNode }) {
   const pending = (await repo.listPendingOrders()).length;
+  const actor = await getCurrentActor();
   return (
     <div className="min-h-dvh flex bg-canvas">
       {/* Desktop sidebar — hidden on mobile */}
@@ -49,12 +51,13 @@ export default async function Shell({ children }: { children: React.ReactNode })
             <span className={`h-1.5 w-1.5 rounded-full ${isDemoMode ? "bg-warn" : "bg-profit"}`} />
             <span className="text-muted">{isDemoMode ? "Demo mode" : "Live · Supabase"}</span>
           </div>
+          <div className="text-[11px] text-faint mt-1">Signed in as {actor}</div>
           <LogoutButton />
         </div>
       </aside>
 
       {/* Mobile nav: hamburger button + slide-in drawer */}
-      <MobileNav pending={pending} demoMode={isDemoMode} />
+      <MobileNav pending={pending} demoMode={isDemoMode} actor={actor} />
 
       {/* Main content — pad top on mobile to clear the fixed hamburger bar */}
       <main className="flex-1 min-w-0 flex flex-col">{children}</main>

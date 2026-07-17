@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { repo } from "@/lib/repo";
 import { CHAIN } from "@/lib/companies";
+import { getCurrentActor } from "@/lib/staff";
 import type { CompanyKey } from "@/lib/types";
 
 const VALID_COMPANIES = new Set<string>(CHAIN);
@@ -65,7 +66,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await repo.patchOrder(id, updates);
   }
 
-  const tx = await repo.verifyOrder(id, "admin", { companies, yourRef, invoiceNoOverrides, termsDays });
+  const actor = await getCurrentActor();
+  const tx = await repo.verifyOrder(id, actor, { companies, yourRef, invoiceNoOverrides, termsDays });
   if (!tx) return NextResponse.json({ error: "could not generate" }, { status: 500 });
   return NextResponse.json({ transactionId: tx.id });
 }
@@ -73,6 +75,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 // DELETE = reject the order.
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await repo.rejectOrder(id);
+  await repo.rejectOrder(id, await getCurrentActor());
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { verifySessionCookie } from "@/lib/session";
 
 // One-time webhook registration. Visit /api/setup-webhook in a browser
 // (while logged in) to tell Telegram where to send bot messages.
@@ -7,8 +8,8 @@ import { cookies } from "next/headers";
 export async function GET(_req: NextRequest) {
   // must be logged in
   const jar = await cookies();
-  const auth = jar.get("lily_auth")?.value;
-  if (auth !== (process.env.LILY_AUTH_TOKEN || "lily-authed")) {
+  const staffId = await verifySessionCookie(jar.get("lily_auth")?.value);
+  if (!staffId) {
     return NextResponse.redirect(new URL("/login", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"));
   }
 

@@ -24,7 +24,8 @@ import type {
   PoLine,
 } from "./types";
 
-export const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL;
+export { isDemoMode } from "./env";
+import { isDemoMode } from "./env";
 
 // DB `tier` column stores "1", "2" (layer numbers). Legacy rows store company
 // names ("3c", "prim") — map those transparently so no DB migration is needed.
@@ -207,7 +208,7 @@ export const repo = {
   listCompanies: async (): Promise<Company[]> => CHAIN.map((k) => COMPANIES[k]),
   getCompany: async (key: CompanyKey): Promise<Company> => COMPANIES[key],
 
-  async updateCompany(key: CompanyKey, patch: Partial<Company>) {
+  async updateCompany(key: CompanyKey, patch: Partial<Company>, actor = "admin") {
     const allowed: (keyof Company)[] = [
       "name", "regNo", "tinNo", "formerlyKnownAs", "addressLines", "tel", "email", "banks",
     ];
@@ -231,7 +232,7 @@ export const repo = {
       if ("banks" in patch) upsert.banks = patch.banks;
       await db.from("companies").upsert(upsert);
     }
-    await log("admin", "company.update", `${key}: ${Object.keys(patch).join(", ")}`);
+    await log(actor, "company.update", `${key}: ${Object.keys(patch).join(", ")}`);
   },
 
   // ── catalog ───────────────────────────────────────────────────────────────
@@ -276,7 +277,7 @@ export const repo = {
     return { id: data.id, name: data.name, specLines: data.spec_lines ?? [], uom: data.uom };
   },
 
-  async upsertMarginRule(rule: MarginRule): Promise<void> {
+  async upsertMarginRule(rule: MarginRule, actor = "admin"): Promise<void> {
     if (isDemoMode) {
       const i = store.marginRules.findIndex(
         (r) => r.productId === rule.productId && r.layer === rule.layer,
@@ -291,7 +292,7 @@ export const repo = {
         value: rule.value,
       });
     }
-    await log("admin", "margin.update", `${rule.productId}/layer${rule.layer} -> ${rule.value} ${rule.type}`);
+    await log(actor, "margin.update", `${rule.productId}/layer${rule.layer} -> ${rule.value} ${rule.type}`);
   },
 
   // ── orders ────────────────────────────────────────────────────────────────
@@ -531,13 +532,13 @@ export const repo = {
     return `${prefix}${String(count + 1).padStart(3, "0")}`;
   },
 
-  async addQuotation(order: Order): Promise<void> {
+  async addQuotation(order: Order, actor = "admin"): Promise<void> {
     if (isDemoMode) {
       store.orders.unshift(order);
     } else {
       await getSupabaseAdmin().from("orders").insert(orderRow(order));
     }
-    await log("admin", "quote.created", `${order.id} for ${order.customerName}`);
+    await log(actor, "quote.created", `${order.id} for ${order.customerName}`);
   },
 
   async listQuotations(): Promise<Order[]> {
@@ -560,7 +561,7 @@ export const repo = {
 
   // Accepting a quote spawns a fresh pending order (the normal cascade input)
   // and marks the quote "accepted" so it stays on record.
-  async convertQuotationToOrder(id: string): Promise<string | undefined> {
+  async convertQuotationToOrder(id: string, actor = "admin"): Promise<string | undefined> {
     let quote: Order | undefined;
     if (isDemoMode) {
       quote = store.orders.find((o) => o.id === id && o.source === "quotation");
@@ -591,7 +592,7 @@ export const repo = {
       await db.from("orders").insert(orderRow(newOrder));
       await db.from("orders").update({ status: "accepted" }).eq("id", id);
     }
-    await log("admin", "quote.accepted", `${id} -> order ${newId}`);
+    await log(actor, "quote.accepted", `${id} -> order ${newId}`);
     return newId;
   },
 
@@ -613,13 +614,13 @@ export const repo = {
     return `${prefix}${String(count + 1).padStart(3, "0")}`;
   },
 
-  async addPurchaseOrder(po: PurchaseOrder): Promise<void> {
+  async addPurchaseOrder(po: PurchaseOrder, actor = "admin"): Promise<void> {
     if (isDemoMode) {
       store.purchaseOrders.unshift(po);
     } else {
       await getSupabaseAdmin().from("purchase_orders").insert(poRow(po));
     }
-    await log("admin", "po.created", `${po.id} to ${po.supplierName}${po.quotationId ? ` (for ${po.quotationId})` : ""}`);
+    await log(actor, "po.created", `${po.id} to ${po.supplierName}${po.quotationId ? ` (for ${po.quotationId})` : ""}`);
   },
 
   async listPurchaseOrders(): Promise<PurchaseOrder[]> {
@@ -639,7 +640,7 @@ export const repo = {
 
   // Confirming a PO that's linked to a quotation spawns that quotation's
   // pending sell-order (same effect as accepting the quotation directly).
-  async confirmPurchaseOrder(id: string): Promise<{ po: PurchaseOrder; orderId?: string } | undefined> {
+  async confirmPurchaseOrder(id: string, actor = "admin"): Promise<{ po: PurchaseOrder; orderId?: string } | undefined> {
     const po = await this.getPurchaseOrder(id);
     if (!po) return undefined;
 
@@ -647,7 +648,7 @@ export const repo = {
     if (po.quotationId) {
       const quote = await this.getQuotation(po.quotationId);
       if (quote && quote.status !== "accepted") {
-        orderId = await this.convertQuotationToOrder(po.quotationId);
+        orderId = await this.convertQuotationToOrder(po.quotationId, actor);
       } else if (quote) {
         orderId = undefined; // already accepted via another path
       }
@@ -665,18 +666,18 @@ export const repo = {
         .update({ status: "confirmed", confirmed_at: confirmedAt, linked_order_id: updated.linkedOrderId ?? null })
         .eq("id", id);
     }
-    await log("admin", "po.confirmed", `${id}${orderId ? ` -> order ${orderId}` : ""}`);
+    await log(actor, "po.confirmed", `${id}${orderId ? ` -> order ${orderId}` : ""}`);
     return { po: updated, orderId };
   },
 
-  async cancelPurchaseOrder(id: string): Promise<void> {
+  async cancelPurchaseOrder(id: string, actor = "admin"): Promise<void> {
     if (isDemoMode) {
       const p = store.purchaseOrders.find((x) => x.id === id);
       if (p) p.status = "cancelled";
     } else {
       await getSupabaseAdmin().from("purchase_orders").update({ status: "cancelled" }).eq("id", id);
     }
-    await log("admin", "po.cancelled", id);
+    await log(actor, "po.cancelled", id);
   },
 
   // ── transactions ──────────────────────────────────────────────────────────
@@ -808,7 +809,7 @@ export const repo = {
   },
 
   // ── customer master ─────────────────────────────────────────────────────────
-  async upsertCustomer(c: Customer): Promise<Customer> {
+  async upsertCustomer(c: Customer, actor = "admin"): Promise<Customer> {
     const id = c.id || `cus-${Date.now().toString(36)}`;
     const rec = { ...c, id };
     if (isDemoMode) {
@@ -824,21 +825,21 @@ export const repo = {
         fax: rec.fax ?? null,
       });
     }
-    await log("admin", "customer.upsert", `${rec.name}`);
+    await log(actor, "customer.upsert", `${rec.name}`);
     return rec;
   },
 
-  async deleteCustomer(id: string): Promise<void> {
+  async deleteCustomer(id: string, actor = "admin"): Promise<void> {
     if (isDemoMode) {
       store.customers = store.customers.filter((x) => x.id !== id);
     } else {
       await getSupabaseAdmin().from("customers").delete().eq("id", id);
     }
-    await log("admin", "customer.delete", id);
+    await log(actor, "customer.delete", id);
   },
 
   // ── product master ──────────────────────────────────────────────────────────
-  async upsertProduct(p: Product): Promise<Product> {
+  async upsertProduct(p: Product, actor = "admin"): Promise<Product> {
     const id = p.id || `prd-${Date.now().toString(36)}`;
     const rec = { ...p, id };
     if (isDemoMode) {
@@ -853,11 +854,11 @@ export const repo = {
         uom: rec.uom,
       });
     }
-    await log("admin", "product.upsert", `${rec.name}`);
+    await log(actor, "product.upsert", `${rec.name}`);
     return rec;
   },
 
-  async deleteProduct(id: string): Promise<void> {
+  async deleteProduct(id: string, actor = "admin"): Promise<void> {
     if (isDemoMode) {
       store.products = store.products.filter((x) => x.id !== id);
       store.marginRules = store.marginRules.filter((r) => r.productId !== id);
@@ -866,7 +867,7 @@ export const repo = {
       await db.from("margin_rules").delete().eq("product_id", id);
       await db.from("products").delete().eq("id", id);
     }
-    await log("admin", "product.delete", id);
+    await log(actor, "product.delete", id);
   },
 
   // ── search & analytics ────────────────────────────────────────────────────

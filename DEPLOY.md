@@ -2,10 +2,11 @@
 
 Steps marked **[you]** are manual (accounts/tokens/clicks). **[code]** are done in the repo.
 
-> **Current data mode:** the app runs in **demo mode** (in-memory) and is fully usable,
-> but data resets when the server restarts. **Do not issue real invoices** until the
-> Supabase persistence layer is wired in code (tracked as the next code task). You can
-> still deploy now to validate hosting, login, the bot, and invoice rendering.
+> **Current data mode:** live — the app persists to Supabase whenever
+> `NEXT_PUBLIC_SUPABASE_URL` is set (falls back to an in-memory demo store only
+> when it's unset, e.g. running the repo with no `.env.local` at all). Run every
+> file under `supabase/migrations/` in order (SQL Editor) before deploying —
+> migration 004 adds per-person staff accounts (see step 6).
 
 ---
 
@@ -32,15 +33,12 @@ git push -u origin main
 ## 2. Supabase  [you] + [code pending]
 
 1. Create a project at https://supabase.com → **New project** (pick a region close to Malaysia, e.g. Singapore).
-2. In the project: **SQL Editor** → paste & run `supabase/schema.sql`, then `supabase/seed.sql`.
+2. In the project: **SQL Editor** → paste & run `supabase/schema.sql`, then `supabase/seed.sql`, then every file in
+   `supabase/migrations/` **in numeric order** (001, 002, 003, 004…).
 3. **Project Settings → API** — copy these for later (Render env vars):
    - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
    - anon public key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - service_role key → `SUPABASE_SERVICE_ROLE_KEY` (keep secret)
-
-> **[code pending]** The app currently reads/writes the in-memory store. Wiring the
-> live Supabase queries (async repo) is the next code task — once your project exists
-> we verify it end to end.
 
 ---
 
@@ -93,6 +91,12 @@ Then message the bot: `/start`, then e.g.
 
 ---
 
-## 6. First login
+## 6. First login & staff accounts
 
-Visit the Render URL → landing page → **Sign in** → passcode **870333** (or your `LILY_PASSCODE`).
+Visit the Render URL → landing page → **Sign in** → passcode **870333**. Migration 004 seeds
+this as a staff account named "Owner" — rename it or add teammates (each gets their own
+passcode) from **Settings → Staff**. Actions like verify/void/mark-paid are attributed to
+whoever's passcode is signed in, instead of a single shared login.
+
+`LILY_PASSCODE` / `LILY_AUTH_TOKEN` env vars are still used as a fallback only when running
+without Supabase (demo mode) — in live mode, passcodes live in the `staff` table instead.

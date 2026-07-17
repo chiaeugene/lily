@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { repo } from "@/lib/repo";
+import { getCurrentActor } from "@/lib/staff";
 import { todayDDMMYYYY } from "@/lib/store";
 import type { PurchaseOrder, PoLine } from "@/lib/types";
 
@@ -42,6 +43,6 @@ export async function POST(req: NextRequest) {
     createdAt: new Date().toISOString(),
   };
 
-  await repo.addPurchaseOrder(po);
+  await repo.addPurchaseOrder(po, await getCurrentActor());
   return NextResponse.json({ id });
 }

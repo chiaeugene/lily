@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-const TOKEN = process.env.LILY_AUTH_TOKEN || "lily-authed";
+import { verifySessionCookie } from "./lib/session";
 
 // Public paths that must NOT be gated:
 //  - "/" the marketing landing page
@@ -16,12 +15,12 @@ function isPublic(pathname: string) {
   );
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (isPublic(pathname)) return NextResponse.next();
 
-  const authed = req.cookies.get("lily_auth")?.value === TOKEN;
-  if (!authed) {
+  const staffId = await verifySessionCookie(req.cookies.get("lily_auth")?.value);
+  if (!staffId) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.search = pathname !== "/" ? `?from=${encodeURIComponent(pathname)}` : "";

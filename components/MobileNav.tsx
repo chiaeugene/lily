@@ -28,9 +28,11 @@ const NAV = [
 export default function MobileNav({
   pending,
   demoMode,
+  actor,
 }: {
   pending: number;
   demoMode: boolean;
+  actor: string;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -108,6 +110,7 @@ export default function MobileNav({
             <span className={`h-1.5 w-1.5 rounded-full ${demoMode ? "bg-warn" : "bg-profit"}`} />
             <span className="text-muted">{demoMode ? "Demo mode" : "Live · Supabase"}</span>
           </div>
+          <div className="text-[11px] text-faint mt-1">Signed in as {actor}</div>
           <LogoutButton />
         </div>
       </aside>

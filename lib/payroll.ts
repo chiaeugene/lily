@@ -192,6 +192,53 @@ export async function runPayroll(month: string, actor: string): Promise<PayrollR
   return { id, month, createdAt, payslips };
 }
 
+// Recalculates EPF/SOCSO/EIS from the new wage (basic + allowances) and
+// updates net pay. Basic salary itself isn't editable per-payslip — change
+// it on the employee record so it applies from the next run onward.
+export async function updatePayslip(
+  payslipId: string,
+  patch: { allowances?: number; deductions?: number; pcb?: number },
+): Promise<Payslip | undefined> {
+  if (isDemoMode) {
+    for (const run of DEMO_RUNS) {
+      const p = run.payslips.find((x) => x.id === payslipId);
+      if (!p) continue;
+      if (patch.allowances !== undefined) p.allowances = patch.allowances;
+      if (patch.deductions !== undefined) p.deductions = patch.deductions;
+      if (patch.pcb !== undefined) p.pcb = patch.pcb;
+      Object.assign(p, calcStatutory(p.basicSalary, p.allowances));
+      p.netPay = round2(p.basicSalary + p.allowances - p.epfEmployee - p.socsoEmployee - p.eisEmployee - p.pcb - p.deductions);
+      return p;
+    }
+    return undefined;
+  }
+  const db = getSupabaseAdmin();
+  const { data: row } = await db.from("payslips").select("*").eq("id", payslipId).maybeSingle();
+  if (!row) return undefined;
+  const p = rowToPayslip(row);
+  if (patch.allowances !== undefined) p.allowances = patch.allowances;
+  if (patch.deductions !== undefined) p.deductions = patch.deductions;
+  if (patch.pcb !== undefined) p.pcb = patch.pcb;
+  Object.assign(p, calcStatutory(p.basicSalary, p.allowances));
+  p.netPay = round2(p.basicSalary + p.allowances - p.epfEmployee - p.socsoEmployee - p.eisEmployee - p.pcb - p.deductions);
+  await db
+    .from("payslips")
+    .update({
+      allowances: p.allowances,
+      deductions: p.deductions,
+      pcb: p.pcb,
+      epf_employee: p.epfEmployee,
+      epf_employer: p.epfEmployer,
+      socso_employee: p.socsoEmployee,
+      socso_employer: p.socsoEmployer,
+      eis_employee: p.eisEmployee,
+      eis_employer: p.eisEmployer,
+      net_pay: p.netPay,
+    })
+    .eq("id", payslipId);
+  return p;
+}
+
 export async function markPayslipPaid(payslipId: string, paid: boolean): Promise<void> {
   if (isDemoMode) {
     for (const run of DEMO_RUNS) {

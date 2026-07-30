@@ -7,7 +7,7 @@ import { store } from "./store";
 import { buildCascade } from "./cascade";
 import { formatInvoiceNo } from "./invoiceNumber";
 import { COMPANIES, CHAIN, ensureCompaniesHydrated } from "./companies";
-import { getSupabaseAdmin } from "./supabase";
+import { scopedDb } from "./scopedDb";
 import type {
   Customer,
   Product,
@@ -109,7 +109,7 @@ function rowToTransaction(r: any, invoices: Invoice[]): Transaction {
 async function fetchTransactionWithInvoices(
   txRow: Record<string, unknown>,
 ): Promise<Transaction> {
-  const db = getSupabaseAdmin();
+  const db = await scopedDb();
   const { data: invRows } = await db
     .from("invoices")
     .select("*")
@@ -196,7 +196,7 @@ function memLog(actor: string, action: string, detail: string) {
 }
 
 async function dbLog(actor: string, action: string, detail: string) {
-  await getSupabaseAdmin()
+  await (await scopedDb())
     .from("audit_log")
     .insert({ actor, action, detail })
     .then(() => {});
@@ -232,7 +232,7 @@ export const repo = {
     }
     if (!isDemoMode) {
       // persist to Supabase companies table (snake_case columns)
-      const db = getSupabaseAdmin();
+      const db = await scopedDb();
       const upsert: Record<string, unknown> = { key };
       if ("name" in patch) upsert.name = patch.name;
       if ("regNo" in patch) upsert.reg_no = patch.regNo;
@@ -251,8 +251,8 @@ export const repo = {
   // ── catalog ───────────────────────────────────────────────────────────────
   async listCustomers(): Promise<Customer[]> {
     if (isDemoMode) return store.customers;
-    const { data } = await getSupabaseAdmin().from("customers").select("*").order("name");
-    return (data ?? []).map((r) => ({
+    const { data } = await (await scopedDb()).from("customers").select("*").order("name");
+    return (data ?? []).map((r: any) => ({
       id: r.id,
       name: r.name,
       addressLines: r.address_lines ?? [],
@@ -270,7 +270,7 @@ export const repo = {
       if (!c.portalToken) c.portalToken = cryptoRandomToken();
       return c.portalToken;
     }
-    const db = getSupabaseAdmin();
+    const db = await scopedDb();
     const { data } = await db.from("customers").select("portal_token").eq("id", id).maybeSingle();
     if (data?.portal_token) return data.portal_token;
     const token = cryptoRandomToken();
@@ -280,7 +280,7 @@ export const repo = {
 
   async getCustomerByPortalToken(token: string): Promise<Customer | undefined> {
     if (isDemoMode) return store.customers.find((c) => c.portalToken === token);
-    const { data } = await getSupabaseAdmin().from("customers").select("*").eq("portal_token", token).maybeSingle();
+    const { data } = await (await scopedDb()).from("customers").select("*").eq("portal_token", token).maybeSingle();
     if (!data) return undefined;
     return {
       id: data.id,
@@ -294,8 +294,8 @@ export const repo = {
 
   async listProducts(): Promise<Product[]> {
     if (isDemoMode) return store.products;
-    const { data } = await getSupabaseAdmin().from("products").select("*").order("name");
-    return (data ?? []).map((r) => ({
+    const { data } = await (await scopedDb()).from("products").select("*").order("name");
+    return (data ?? []).map((r: any) => ({
       id: r.id,
       name: r.name,
       specLines: r.spec_lines ?? [],
@@ -305,8 +305,8 @@ export const repo = {
 
   async listMarginRules(): Promise<MarginRule[]> {
     if (isDemoMode) return store.marginRules;
-    const { data } = await getSupabaseAdmin().from("margin_rules").select("*");
-    return (data ?? []).map((r) => ({
+    const { data } = await (await scopedDb()).from("margin_rules").select("*");
+    return (data ?? []).map((r: any) => ({
       productId: r.product_id,
       layer: tierToLayer(r.tier),
       type: r.type as "rm_per_unit" | "percent",
@@ -316,7 +316,7 @@ export const repo = {
 
   async getProduct(id: string): Promise<Product | undefined> {
     if (isDemoMode) return store.products.find((p) => p.id === id);
-    const { data } = await getSupabaseAdmin().from("products").select("*").eq("id", id).single();
+    const { data } = await (await scopedDb()).from("products").select("*").eq("id", id).single();
     if (!data) return undefined;
     return { id: data.id, name: data.name, specLines: data.spec_lines ?? [], uom: data.uom };
   },
@@ -329,7 +329,7 @@ export const repo = {
       if (i >= 0) store.marginRules[i] = rule;
       else store.marginRules.push(rule);
     } else {
-      await getSupabaseAdmin().from("margin_rules").upsert({
+      await (await scopedDb()).from("margin_rules").upsert({
         product_id: rule.productId,
         tier: String(rule.layer), // stored as "1", "2" in DB
         type: rule.type,
@@ -342,7 +342,7 @@ export const repo = {
   // ── orders ────────────────────────────────────────────────────────────────
   async listPendingOrders(): Promise<Order[]> {
     if (isDemoMode) return store.orders.filter((o) => o.status === "pending");
-    const { data } = await getSupabaseAdmin()
+    const { data } = await (await scopedDb())
       .from("orders")
       .select("*")
       .eq("status", "pending")
@@ -352,7 +352,7 @@ export const repo = {
 
   async getOrder(id: string): Promise<Order | undefined> {
     if (isDemoMode) return store.orders.find((o) => o.id === id);
-    const { data } = await getSupabaseAdmin().from("orders").select("*").eq("id", id).single();
+    const { data } = await (await scopedDb()).from("orders").select("*").eq("id", id).single();
     return data ? rowToOrder(data) : undefined;
   },
 
@@ -360,7 +360,7 @@ export const repo = {
     if (isDemoMode) {
       store.orders.unshift(order);
     } else {
-      await getSupabaseAdmin().from("orders").insert({
+      await (await scopedDb()).from("orders").insert({
         id: order.id,
         source: order.source,
         raw_message: order.rawMessage ?? null,
@@ -403,7 +403,7 @@ export const repo = {
       if (updates.terms) patch.terms = updates.terms;
       if (updates.lines) patch.lines = updates.lines;
       if (Object.keys(patch).length) {
-        await getSupabaseAdmin().from("orders").update(patch).eq("id", id);
+        await (await scopedDb()).from("orders").update(patch).eq("id", id);
       }
     }
   },
@@ -452,14 +452,14 @@ export const repo = {
     }
 
     // ── Supabase path ──
-    const db = getSupabaseAdmin();
+    const db = await scopedDb();
 
     const { data: orderRow } = await db.from("orders").select("*").eq("id", orderId).single();
     if (!orderRow) return undefined;
     const order = rowToOrder(orderRow);
 
     const { data: marginRows } = await db.from("margin_rules").select("*");
-    const marginRules: MarginRule[] = (marginRows ?? []).map((r) => ({
+    const marginRules: MarginRule[] = (marginRows ?? []).map((r: any) => ({
       productId: r.product_id,
       layer: tierToLayer(r.tier),
       type: r.type as "rm_per_unit" | "percent",
@@ -552,7 +552,7 @@ export const repo = {
         memLog(actor, "order.rejected", orderId);
       }
     } else {
-      await getSupabaseAdmin().from("orders").update({ status: "rejected" }).eq("id", orderId);
+      await (await scopedDb()).from("orders").update({ status: "rejected" }).eq("id", orderId);
       await dbLog(actor, "order.rejected", orderId);
     }
   },
@@ -566,7 +566,7 @@ export const repo = {
     if (isDemoMode) {
       count = store.orders.filter((o) => o.source === "quotation" && o.id.startsWith(prefix)).length;
     } else {
-      const { data } = await getSupabaseAdmin()
+      const { data } = await (await scopedDb())
         .from("orders")
         .select("id")
         .eq("source", "quotation")
@@ -580,7 +580,7 @@ export const repo = {
     if (isDemoMode) {
       store.orders.unshift(order);
     } else {
-      await getSupabaseAdmin().from("orders").insert(orderRow(order));
+      await (await scopedDb()).from("orders").insert(orderRow(order));
     }
     await log(actor, "quote.created", `${order.id} for ${order.customerName}`);
   },
@@ -589,7 +589,7 @@ export const repo = {
     if (isDemoMode) {
       return store.orders.filter((o) => o.source === "quotation");
     }
-    const { data } = await getSupabaseAdmin()
+    const { data } = await (await scopedDb())
       .from("orders")
       .select("*")
       .eq("source", "quotation")
@@ -599,14 +599,14 @@ export const repo = {
 
   async getQuotation(id: string): Promise<Order | undefined> {
     if (isDemoMode) return store.orders.find((o) => o.id === id && o.source === "quotation");
-    const { data } = await getSupabaseAdmin().from("orders").select("*").eq("id", id).single();
+    const { data } = await (await scopedDb()).from("orders").select("*").eq("id", id).single();
     return data ? rowToOrder(data) : undefined;
   },
 
   // ── journey helpers (powers the order-journey trail view) ──────────────────
   async findOrderByQuotationId(quotationId: string): Promise<Order | undefined> {
     if (isDemoMode) return store.orders.find((o) => o.quotationId === quotationId);
-    const { data } = await getSupabaseAdmin().from("orders").select("*").eq("quotation_id", quotationId).maybeSingle();
+    const { data } = await (await scopedDb()).from("orders").select("*").eq("quotation_id", quotationId).maybeSingle();
     return data ? rowToOrder(data) : undefined;
   },
 
@@ -617,7 +617,7 @@ export const repo = {
 
   async findTransactionByOrderId(orderId: string): Promise<Transaction | undefined> {
     if (isDemoMode) return store.transactions.find((t) => t.orderId === orderId);
-    const { data } = await getSupabaseAdmin().from("transactions").select("*").eq("order_id", orderId).maybeSingle();
+    const { data } = await (await scopedDb()).from("transactions").select("*").eq("order_id", orderId).maybeSingle();
     return data ? fetchTransactionWithInvoices(data) : undefined;
   },
 
@@ -628,7 +628,7 @@ export const repo = {
     if (isDemoMode) {
       quote = store.orders.find((o) => o.id === id && o.source === "quotation");
     } else {
-      const { data } = await getSupabaseAdmin().from("orders").select("*").eq("id", id).single();
+      const { data } = await (await scopedDb()).from("orders").select("*").eq("id", id).single();
       quote = data ? rowToOrder(data) : undefined;
     }
     if (!quote) return undefined;
@@ -651,7 +651,7 @@ export const repo = {
       const q = store.orders.find((o) => o.id === id);
       if (q) q.status = "accepted";
     } else {
-      const db = getSupabaseAdmin();
+      const db = await scopedDb();
       await db.from("orders").insert(orderRow(newOrder));
       await db.from("orders").update({ status: "accepted" }).eq("id", id);
     }
@@ -668,7 +668,7 @@ export const repo = {
     if (isDemoMode) {
       count = store.purchaseOrders.filter((p) => p.id.startsWith(prefix)).length;
     } else {
-      const { data } = await getSupabaseAdmin()
+      const { data } = await (await scopedDb())
         .from("purchase_orders")
         .select("id")
         .like("id", `${prefix}%`);
@@ -681,14 +681,14 @@ export const repo = {
     if (isDemoMode) {
       store.purchaseOrders.unshift(po);
     } else {
-      await getSupabaseAdmin().from("purchase_orders").insert(poRow(po));
+      await (await scopedDb()).from("purchase_orders").insert(poRow(po));
     }
     await log(actor, "po.created", `${po.id} to ${po.supplierName}${po.quotationId ? ` (for ${po.quotationId})` : ""}`);
   },
 
   async listPurchaseOrders(): Promise<PurchaseOrder[]> {
     if (isDemoMode) return store.purchaseOrders;
-    const { data } = await getSupabaseAdmin()
+    const { data } = await (await scopedDb())
       .from("purchase_orders")
       .select("*")
       .order("created_at", { ascending: false });
@@ -697,7 +697,7 @@ export const repo = {
 
   async getPurchaseOrder(id: string): Promise<PurchaseOrder | undefined> {
     if (isDemoMode) return store.purchaseOrders.find((p) => p.id === id);
-    const { data } = await getSupabaseAdmin().from("purchase_orders").select("*").eq("id", id).single();
+    const { data } = await (await scopedDb()).from("purchase_orders").select("*").eq("id", id).single();
     return data ? rowToPo(data) : undefined;
   },
 
@@ -724,7 +724,7 @@ export const repo = {
       const i = store.purchaseOrders.findIndex((p) => p.id === id);
       if (i !== -1) store.purchaseOrders[i] = updated;
     } else {
-      await getSupabaseAdmin()
+      await (await scopedDb())
         .from("purchase_orders")
         .update({ status: "confirmed", confirmed_at: confirmedAt, linked_order_id: updated.linkedOrderId ?? null })
         .eq("id", id);
@@ -738,7 +738,7 @@ export const repo = {
       const p = store.purchaseOrders.find((x) => x.id === id);
       if (p) p.status = "cancelled";
     } else {
-      await getSupabaseAdmin().from("purchase_orders").update({ status: "cancelled" }).eq("id", id);
+      await (await scopedDb()).from("purchase_orders").update({ status: "cancelled" }).eq("id", id);
     }
     await log(actor, "po.cancelled", id);
   },
@@ -746,28 +746,28 @@ export const repo = {
   // ── transactions ──────────────────────────────────────────────────────────
   async recentTransactions(n = 10): Promise<Transaction[]> {
     if (isDemoMode) return store.transactions.slice(0, n);
-    const db = getSupabaseAdmin();
+    const db = await scopedDb();
     const { data: rows } = await db
       .from("transactions")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(n);
-    return Promise.all((rows ?? []).map((r) => fetchTransactionWithInvoices(r)));
+    return Promise.all((rows ?? []).map((r: any) => fetchTransactionWithInvoices(r)));
   },
 
   async allTransactions(): Promise<Transaction[]> {
     if (isDemoMode) return store.transactions;
-    const db = getSupabaseAdmin();
+    const db = await scopedDb();
     const { data: rows } = await db
       .from("transactions")
       .select("*")
       .order("created_at", { ascending: false });
-    return Promise.all((rows ?? []).map((r) => fetchTransactionWithInvoices(r)));
+    return Promise.all((rows ?? []).map((r: any) => fetchTransactionWithInvoices(r)));
   },
 
   async getTransaction(id: string): Promise<Transaction | undefined> {
     if (isDemoMode) return store.transactions.find((t) => t.id === id);
-    const db = getSupabaseAdmin();
+    const db = await scopedDb();
     const { data: row } = await db.from("transactions").select("*").eq("id", id).single();
     if (!row) return undefined;
     return fetchTransactionWithInvoices(row);
@@ -783,7 +783,7 @@ export const repo = {
       }
       return undefined;
     }
-    const db = getSupabaseAdmin();
+    const db = await scopedDb();
     const { data: invRow } = await db.from("invoices").select("*").eq("id", invoiceId).single();
     if (!invRow) return undefined;
     const { data: txRow } = await db
@@ -808,7 +808,7 @@ export const repo = {
       memLog(actor, "transaction.void", `${id}: ${r}`);
       return;
     }
-    await getSupabaseAdmin()
+    await (await scopedDb())
       .from("transactions")
       .update({ status: "void", void_reason: r, voided_at: new Date().toISOString() })
       .eq("id", id);
@@ -825,7 +825,7 @@ export const repo = {
       memLog(actor, paid ? "transaction.paid" : "transaction.unpaid", id);
       return;
     }
-    await getSupabaseAdmin()
+    await (await scopedDb())
       .from("transactions")
       .update({ paid_status: paid ? "paid" : "unpaid", paid_at: paidAt })
       .eq("id", id);
@@ -880,7 +880,7 @@ export const repo = {
       if (i >= 0) store.customers[i] = rec;
       else store.customers.push(rec);
     } else {
-      await getSupabaseAdmin().from("customers").upsert({
+      await (await scopedDb()).from("customers").upsert({
         id: rec.id,
         name: rec.name,
         address_lines: rec.addressLines,
@@ -896,7 +896,7 @@ export const repo = {
     if (isDemoMode) {
       store.customers = store.customers.filter((x) => x.id !== id);
     } else {
-      await getSupabaseAdmin().from("customers").delete().eq("id", id);
+      await (await scopedDb()).from("customers").delete().eq("id", id);
     }
     await log(actor, "customer.delete", id);
   },
@@ -910,7 +910,7 @@ export const repo = {
       if (i >= 0) store.products[i] = rec;
       else store.products.push(rec);
     } else {
-      await getSupabaseAdmin().from("products").upsert({
+      await (await scopedDb()).from("products").upsert({
         id: rec.id,
         name: rec.name,
         spec_lines: rec.specLines,
@@ -924,9 +924,9 @@ export const repo = {
   async deleteProduct(id: string, actor = "admin"): Promise<void> {
     if (isDemoMode) {
       store.products = store.products.filter((x) => x.id !== id);
-      store.marginRules = store.marginRules.filter((r) => r.productId !== id);
+      store.marginRules = store.marginRules.filter((r: any) => r.productId !== id);
     } else {
-      const db = getSupabaseAdmin();
+      const db = await scopedDb();
       await db.from("margin_rules").delete().eq("product_id", id);
       await db.from("products").delete().eq("id", id);
     }
@@ -948,7 +948,7 @@ export const repo = {
         );
       });
     }
-    const db = getSupabaseAdmin();
+    const db = await scopedDb();
     // search by customer name or tx id (Postgres ilike)
     const { data: txRows } = await db
       .from("transactions")
@@ -971,7 +971,7 @@ export const repo = {
       .select("*")
       .in("id", allIds)
       .order("created_at", { ascending: false });
-    return Promise.all((allRows ?? []).map((r) => fetchTransactionWithInvoices(r)));
+    return Promise.all((allRows ?? []).map((r: any) => fetchTransactionWithInvoices(r)));
   },
 
   async kpis(): Promise<{
@@ -1013,7 +1013,7 @@ export const repo = {
         outstanding,
       };
     }
-    const db = getSupabaseAdmin();
+    const db = await scopedDb();
     // select("*") tolerates the status/paid_status columns being absent before
     // their migrations run; we filter/default in JS so the dashboard never errors.
     const [{ count: pendingCount }, { data: agg }] = await Promise.all([
@@ -1043,12 +1043,12 @@ export const repo = {
 
   async audit(n = 20): Promise<AuditEntry[]> {
     if (isDemoMode) return store.audit.slice(0, n);
-    const { data } = await getSupabaseAdmin()
+    const { data } = await (await scopedDb())
       .from("audit_log")
       .select("*")
       .order("at", { ascending: false })
       .limit(n);
-    return (data ?? []).map((r) => ({
+    return (data ?? []).map((r: any) => ({
       id: String(r.id),
       at: r.at,
       actor: r.actor,

@@ -50,7 +50,9 @@ export function KpiCard({
         <div className="text-[12px] font-medium text-muted">{label}</div>
         {icon && <div className={`h-7 w-7 rounded-lg grid place-items-center shrink-0 ${badgeCls}`}>{icon}</div>}
       </div>
-      <div className={`mt-2.5 font-mono text-[24px] font-semibold tnum leading-none ${numColor}`}>
+      {/* Sans, not mono — the mono zero reads as a slashed/dotted glyph and
+          looks wrong next to the rest of the UI. tnum keeps digits aligned. */}
+      <div className={`mt-2.5 text-[26px] font-semibold tnum tracking-tight leading-none ${numColor}`}>
         {prefix}
         {typeof value === "number" ? fmt2(value) : value}
       </div>

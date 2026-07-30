@@ -14,6 +14,8 @@ import { buildQuoteInvoice } from "@/lib/quote";
 import { buildPoInvoice } from "@/lib/po";
 import { renderPdf } from "@/lib/pdf";
 import { ensureCompaniesHydrated } from "@/lib/companies";
+import { runWithTenant } from "@/lib/tenantScope";
+import { TIEN_NGAI_TENANT_ID } from "@/lib/tenant";
 import type { Order, PurchaseOrder } from "@/lib/types";
 
 // Explicit prefixes still short-circuit straight to the matching flow — the
@@ -53,6 +55,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
+  // A webhook has no session cookie, so every tenant-scoped query would refuse
+  // to run. Resolve which company this message belongs to and run the whole
+  // handler inside that tenant.
+  //
+  // TODO(per-user Telegram linking): look the tenant up from the sender's
+  // Telegram id once users can link their accounts. Until then every message
+  // belongs to the Tien Ngai group, which is the only tenant that exists.
+  const tenantId = TIEN_NGAI_TENANT_ID;
+  return runWithTenant(tenantId, () => handleUpdate(req));
+}
+
+async function handleUpdate(req: NextRequest) {
   const update = await req.json().catch(() => null);
   const msg    = update?.message;
   const chatId = msg?.chat?.id;

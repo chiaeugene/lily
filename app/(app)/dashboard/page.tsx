@@ -65,6 +65,18 @@ export default async function Dashboard() {
       <div className="p-4 md:p-8 space-y-6 max-w-[1200px] w-full mx-auto">
         <DashboardHero pending={k.pending} marginThisMonth={k.marginThisMonth} />
 
+        {/* Quick actions sit directly under the hero so they're reachable
+            without scrolling — starting work is the most common intent. */}
+        <section>
+          <h2 className="text-[13px] font-semibold text-muted mb-3">Start something</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <QuickAction href="/quotation/new" icon={<IconQuote size={17} />} label="New quotation" />
+            <QuickAction href="/po/new" icon={<IconBox size={17} />} label="New purchase order" />
+            <QuickAction href="/expenses" icon={<IconReceipt size={17} />} label="Log an expense" />
+            <QuickAction href="/journey" icon={<IconRoute size={17} />} label="Track an order" />
+          </div>
+        </section>
+
         {/* ── 1. What needs me ──────────────────────────────────────────── */}
         <section>
           <h2 className="text-[13px] font-semibold text-muted mb-3">Needs your attention</h2>
@@ -162,16 +174,6 @@ export default async function Dashboard() {
           </Card>
         </section>
 
-        {/* Quick actions */}
-        <section>
-          <h2 className="text-[13px] font-semibold text-muted mb-3">Start something</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <QuickAction href="/quotation/new" icon={<IconQuote size={17} />} label="New quotation" />
-            <QuickAction href="/po/new" icon={<IconBox size={17} />} label="New purchase order" />
-            <QuickAction href="/expenses" icon={<IconReceipt size={17} />} label="Log an expense" />
-            <QuickAction href="/journey" icon={<IconRoute size={17} />} label="Track an order" />
-          </div>
-        </section>
       </div>
     </>
   );

@@ -1,5 +1,5 @@
 import { isDemoMode } from "./env";
-import { getSupabaseAdmin } from "./supabase";
+import { scopedDb } from "./scopedDb";
 import type { Expense, PaymentVoucher } from "./types";
 
 function todayDDMMYYYY(): string {
@@ -32,13 +32,13 @@ async function nextVoucherId(): Promise<string> {
 
 export async function listExpenses(): Promise<Expense[]> {
   if (isDemoMode) return [...DEMO_EXPENSES].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const { data } = await getSupabaseAdmin().from("expenses").select("*").order("created_at", { ascending: false });
+  const { data } = await (await scopedDb()).from("expenses").select("*").order("created_at", { ascending: false });
   return (data ?? []).map(rowToExpense);
 }
 
 export async function getExpense(id: string): Promise<Expense | undefined> {
   if (isDemoMode) return DEMO_EXPENSES.find((e) => e.id === id);
-  const { data } = await getSupabaseAdmin().from("expenses").select("*").eq("id", id).maybeSingle();
+  const { data } = await (await scopedDb()).from("expenses").select("*").eq("id", id).maybeSingle();
   return data ? rowToExpense(data) : undefined;
 }
 
@@ -77,7 +77,7 @@ export async function addExpense(input: {
     DEMO_EXPENSES.unshift(expense);
     return expense;
   }
-  await getSupabaseAdmin().from("expenses").insert({
+  await (await scopedDb()).from("expenses").insert({
     id: expense.id,
     source: expense.source,
     raw_message: expense.rawMessage ?? null,
@@ -109,7 +109,7 @@ export async function verifyExpense(
     Object.assign(e, patch, { status: "verified" as const, verifiedAt: new Date().toISOString(), verifiedBy: actor });
     return e;
   }
-  const db = getSupabaseAdmin();
+  const db = await scopedDb();
   const upsert: Record<string, unknown> = {
     status: "verified",
     verified_at: new Date().toISOString(),
@@ -134,7 +134,7 @@ export async function rejectExpense(id: string, actor: string): Promise<void> {
     }
     return;
   }
-  await getSupabaseAdmin()
+  await (await scopedDb())
     .from("expenses")
     .update({ status: "rejected", verified_at: new Date().toISOString(), verified_by: actor })
     .eq("id", id);
@@ -172,7 +172,7 @@ export async function addPaymentVoucher(input: {
     return voucher;
   }
 
-  const db = getSupabaseAdmin();
+  const db = await scopedDb();
   await db.from("payment_vouchers").insert({
     id: voucher.id,
     expense_id: voucher.expenseId,
@@ -190,7 +190,7 @@ export async function addPaymentVoucher(input: {
 
 export async function listPaymentVouchers(): Promise<PaymentVoucher[]> {
   if (isDemoMode) return [...DEMO_VOUCHERS].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const { data } = await getSupabaseAdmin().from("payment_vouchers").select("*").order("created_at", { ascending: false });
+  const { data } = await (await scopedDb()).from("payment_vouchers").select("*").order("created_at", { ascending: false });
   return (data ?? []).map(rowToVoucher);
 }
 

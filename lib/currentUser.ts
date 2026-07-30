@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { verifySessionCookie } from "./session";
 import { getUserById, getTenant, type Tenant, type User } from "./tenant";
@@ -16,7 +17,7 @@ export interface Session {
  * rather than falling back to an unscoped query, or one tenant's books would
  * leak into another's.
  */
-export async function getSession(): Promise<Session | null> {
+export const getSession = cache(async function getSession(): Promise<Session | null> {
   const jar = await cookies();
   const userId = await verifySessionCookie(jar.get(AUTH_COOKIE)?.value);
   if (!userId) return null;
@@ -33,7 +34,7 @@ export async function getSession(): Promise<Session | null> {
   if (!tenant || !tenant.active) return null;
 
   return { user, tenant };
-}
+});
 
 /** Throws when unauthenticated — use in route handlers that must not proceed. */
 export async function requireSession(): Promise<Session> {

@@ -1,5 +1,5 @@
 import { isDemoMode } from "./env";
-import { getSupabaseAdmin } from "./supabase";
+import { scopedDb } from "./scopedDb";
 import type { Employee, Payslip, PayrollRun } from "./types";
 
 // ── Statutory contribution rates ────────────────────────────────────────────
@@ -41,7 +41,7 @@ const DEMO_RUNS: PayrollRun[] = g.__lilyPayrollRuns ?? (g.__lilyPayrollRuns = []
 
 export async function listEmployees(): Promise<Employee[]> {
   if (isDemoMode) return DEMO_EMPLOYEES;
-  const { data } = await getSupabaseAdmin().from("employees").select("*").order("name");
+  const { data } = await (await scopedDb()).from("employees").select("*").order("name");
   return (data ?? []).map(rowToEmployee);
 }
 
@@ -65,7 +65,7 @@ export async function upsertEmployee(e: Partial<Employee> & { name: string }): P
     else DEMO_EMPLOYEES.push(rec);
     return rec;
   }
-  const db = getSupabaseAdmin();
+  const db = await scopedDb();
   const row = {
     id: e.id || undefined,
     name: e.name,
@@ -89,7 +89,7 @@ export async function setEmployeeActive(id: string, active: boolean): Promise<vo
     if (e) e.active = active;
     return;
   }
-  await getSupabaseAdmin().from("employees").update({ active }).eq("id", id);
+  await (await scopedDb()).from("employees").update({ active }).eq("id", id);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -112,7 +112,7 @@ function rowToEmployee(r: any): Employee {
 
 export async function listPayrollRuns(): Promise<PayrollRun[]> {
   if (isDemoMode) return [...DEMO_RUNS].sort((a, b) => b.month.localeCompare(a.month));
-  const db = getSupabaseAdmin();
+  const db = await scopedDb();
   const { data: runs } = await db.from("payroll_runs").select("*").order("month", { ascending: false });
   const out: PayrollRun[] = [];
   for (const r of runs ?? []) {
@@ -124,7 +124,7 @@ export async function listPayrollRuns(): Promise<PayrollRun[]> {
 
 export async function getPayrollRun(id: string): Promise<PayrollRun | undefined> {
   if (isDemoMode) return DEMO_RUNS.find((r) => r.id === id);
-  const db = getSupabaseAdmin();
+  const db = await scopedDb();
   const { data: r } = await db.from("payroll_runs").select("*").eq("id", id).single();
   if (!r) return undefined;
   const { data: slips } = await db.from("payslips").select("*").eq("payroll_run_id", id);
@@ -164,7 +164,7 @@ export async function runPayroll(month: string, actor: string): Promise<PayrollR
     return run;
   }
 
-  const db = getSupabaseAdmin();
+  const db = await scopedDb();
   await db.from("payroll_runs").insert({ id, month, created_at: createdAt });
   if (payslips.length) {
     await db.from("payslips").insert(
@@ -212,7 +212,7 @@ export async function updatePayslip(
     }
     return undefined;
   }
-  const db = getSupabaseAdmin();
+  const db = await scopedDb();
   const { data: row } = await db.from("payslips").select("*").eq("id", payslipId).maybeSingle();
   if (!row) return undefined;
   const p = rowToPayslip(row);
@@ -250,7 +250,7 @@ export async function markPayslipPaid(payslipId: string, paid: boolean): Promise
     }
     return;
   }
-  await getSupabaseAdmin()
+  await (await scopedDb())
     .from("payslips")
     .update({ paid_status: paid ? "paid" : "unpaid", paid_at: paid ? new Date().toISOString() : null })
     .eq("id", payslipId);

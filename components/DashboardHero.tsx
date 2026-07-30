@@ -44,7 +44,7 @@ export default function DashboardHero({
 
       <div className="mt-6 flex flex-wrap gap-2.5">
         <Link
-          href="#pending"
+          href="/pending"
           className="inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-[13.5px] font-medium px-4 py-2.5 transition-transform hover:-translate-y-px"
         >
           Review pending

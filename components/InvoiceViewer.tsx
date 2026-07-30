@@ -102,11 +102,10 @@ export default function InvoiceViewer({ invoice, onClose }: { invoice: InvoiceRe
               <span className="hidden sm:inline">{sharing ? "Preparing…" : "Send"}</span>
             </button>
 
-            {/* Save — downloads the real PDF */}
+            {/* Save — downloads the real PDF (?download forces attachment
+                disposition so it saves rather than opening in the viewer) */}
             <a
-              href={`/api/invoice/${invoice.id}/pdf`}
-              target="_blank"
-              rel="noreferrer"
+              href={`/api/invoice/${invoice.id}/pdf?download=1`}
               download={`${invoice.invoiceNo}.pdf`}
               className="inline-flex items-center gap-1.5 text-sm text-ink hover:bg-canvas rounded-lg px-2 sm:px-3 py-1.5"
               title="Save"

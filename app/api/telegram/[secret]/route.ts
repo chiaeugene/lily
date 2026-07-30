@@ -9,7 +9,12 @@ import { addExpense } from "@/lib/expenses";
 import { repo } from "@/lib/repo";
 import { fmt2 } from "@/lib/money";
 import { todayDDMMYYYY } from "@/lib/store";
-import type { Order } from "@/lib/types";
+import { invoiceHtml } from "@/lib/invoiceHtml";
+import { buildQuoteInvoice } from "@/lib/quote";
+import { buildPoInvoice } from "@/lib/po";
+import { renderPdf } from "@/lib/pdf";
+import { ensureCompaniesHydrated } from "@/lib/companies";
+import type { Order, PurchaseOrder } from "@/lib/types";
 
 // Explicit prefixes still short-circuit straight to the matching flow — the
 // fastest, cheapest path, and exactly the old behavior. Anything without one
@@ -225,11 +230,14 @@ async function handleQuote(chatId: number, text: string, submittedBy: string, is
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   const url = appUrl ? `${appUrl}/quotation/${id}` : undefined;
   const lines = quote.lines.map((l) => `• ${l.qty} ${l.uom} ${l.productName} @ RM${fmt2(l.sellUnitPrice)}`).join("\n");
-  await reply(
-    chatId,
-    `📄 Quotation ${id} drafted for ${quote.customerName}\n${lines}${url ? "" : "\n\nOpen the dashboard to review and send it."}`,
-    url ? { text: "View quotation", url } : undefined,
-  );
+  const caption = `📄 Quotation ${id} for ${quote.customerName}\n${lines}`;
+
+  // Send the actual PDF, not just a link — it's forwardable straight to the customer.
+  await ensureCompaniesHydrated();
+  const sent = await replyDocument(chatId, `${id}.pdf`, invoiceHtml(buildQuoteInvoice(quote), { docLabel: "QUOTATION" }), caption);
+  if (!sent) {
+    await reply(chatId, caption, url ? { text: "View quotation", url } : undefined);
+  }
 }
 
 async function handlePo(chatId: number, text: string, isGroup: boolean) {
@@ -239,7 +247,7 @@ async function handlePo(chatId: number, text: string, isGroup: boolean) {
     return;
   }
   const id = await repo.nextPoNo();
-  await repo.addPurchaseOrder({
+  const po: PurchaseOrder = {
     id,
     supplierName: draft.supplierName,
     supplierAddressLines: [],
@@ -249,16 +257,26 @@ async function handlePo(chatId: number, text: string, isGroup: boolean) {
     lines: draft.lines,
     status: "draft",
     createdAt: new Date().toISOString(),
-  });
+  };
+  await repo.addPurchaseOrder(po);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   const url = appUrl ? `${appUrl}/po/${id}` : undefined;
   const lines = draft.lines.map((l) => `• ${l.qty} ${l.uom} ${l.description} @ RM${fmt2(l.unitPrice)}`).join("\n");
-  await reply(
-    chatId,
-    `📦 Purchase order ${id} drafted for ${draft.supplierName}\n${lines}${url ? "" : "\n\nOpen the dashboard to review and send it."}`,
-    url ? { text: "View purchase order", url } : undefined,
-  );
+  const caption = `📦 Purchase order ${id} for ${draft.supplierName}\n${lines}`;
+
+  await ensureCompaniesHydrated();
+  const html = invoiceHtml(buildPoInvoice(po), {
+    docLabel: "PURCHASE ORDER",
+    deliveryDate: po.deliveryDate,
+    hideNotes: true,
+    hideQr: true,
+    forceSignature: true,
+  });
+  const sent = await replyDocument(chatId, `${id}.pdf`, html, caption);
+  if (!sent) {
+    await reply(chatId, caption, url ? { text: "View purchase order", url } : undefined);
+  }
 }
 
 async function handleExpense(
@@ -293,6 +311,37 @@ async function handleExpense(
       `Awaiting verification before it's counted in P&L.${url ? "" : "\n\nOpen the dashboard to review it."}`,
     url ? { text: "Review & verify", url } : undefined,
   );
+}
+
+/**
+ * Sends a real PDF file into the chat. Returns false when the PDF couldn't be
+ * produced (no Chromium on the host, e.g. Windows dev) so the caller can fall
+ * back to a link rather than leaving the user with nothing.
+ */
+async function replyDocument(
+  chatId: number,
+  filename: string,
+  html: string,
+  caption: string,
+): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return false;
+  try {
+    const pdf = await renderPdf(html);
+    if (!pdf) return false;
+    const form = new FormData();
+    form.append("chat_id", String(chatId));
+    form.append("caption", caption);
+    form.append("document", new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), filename);
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+      method: "POST",
+      body: form,
+    });
+    return res.ok;
+  } catch (e) {
+    console.error("[telegram] sendDocument failed", String((e as Error)?.message ?? e));
+    return false;
+  }
 }
 
 /** Send a Telegram message, optionally with a single inline-keyboard button. */

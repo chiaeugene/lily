@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { fmt2 } from "@/lib/money";
 import type { Transaction } from "@/lib/types";
 import { paymentState, daysOverdue } from "@/lib/payment";
@@ -25,6 +26,7 @@ export function KpiCard({
   hint,
   icon,
   deltaPct,
+  href,
 }: {
   label: string;
   value: number | string;
@@ -34,13 +36,16 @@ export function KpiCard({
   icon?: React.ReactNode;
   /** Month-over-month % change. Omit entirely rather than fabricate — only pass when there's real prior-period data. */
   deltaPct?: number;
+  /** When set, the whole card becomes a link to the page that explains this number. */
+  href?: string;
 }) {
   const numColor =
     tone === "profit" ? "text-profit" : tone === "loss" ? "text-loss" : tone === "primary" ? "text-primary" : "text-ink";
   const badgeCls =
     tone === "profit" ? "bg-profit-soft text-profit" : tone === "loss" ? "bg-loss-soft text-loss" : tone === "primary" ? "bg-primary-soft text-primary-hover" : "bg-surface-2 text-muted";
-  return (
-    <div className="bg-surface rounded-2xl border border-line shadow-card hover:shadow-lift hover:-translate-y-0.5 transition-all duration-200 p-5">
+
+  const body = (
+    <>
       <div className="flex items-center justify-between gap-2">
         <div className="text-[12px] font-medium text-muted">{label}</div>
         {icon && <div className={`h-7 w-7 rounded-lg grid place-items-center shrink-0 ${badgeCls}`}>{icon}</div>}
@@ -56,8 +61,24 @@ export function KpiCard({
       ) : hint ? (
         <div className="mt-1.5 text-[12px] text-faint">{hint}</div>
       ) : null}
-    </div>
+    </>
   );
+
+  const shell =
+    "block bg-surface rounded-2xl border border-line shadow-card p-5 transition-all duration-200 " +
+    "hover:shadow-lift hover:-translate-y-0.5";
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={`${shell} hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40`}
+      >
+        {body}
+      </Link>
+    );
+  }
+  return <div className={shell}>{body}</div>;
 }
 
 export function Card({

@@ -54,7 +54,7 @@ export default function LoginPage() {
 
   return (
     <AuroraBackground className="px-4">
-      <form onSubmit={submit} className="flex flex-col items-center text-center w-full max-w-[320px]">
+      <form onSubmit={submit} className="mx-auto flex w-full max-w-[340px] flex-col items-center text-center">
         <LilyMark size={44} />
 
         <p className="mt-7 text-xl font-light tracking-wide text-ink/60">{GREETING}</p>

@@ -19,10 +19,12 @@ import {
   IconReceipt,
   IconRoute,
   IconTrendUp,
+  IconClock,
 } from "@/components/icons";
 
 const NAV = [
   { href: "/dashboard",  label: "Dashboard",     Icon: IconDashboard },
+  { href: "/pending",    label: "Pending review", Icon: IconClock },
   { href: "/quotation",  label: "Quotation",      Icon: IconQuote },
   { href: "/po",         label: "Purchase Orders", Icon: IconBox },
   { href: "/journey",    label: "Order Journey",  Icon: IconRoute },
@@ -62,7 +64,7 @@ export default async function Shell({ children }: { children: React.ReactNode })
               href={n.href}
               label={n.label}
               icon={<n.Icon size={18} />}
-              badge={n.href === "/dashboard" ? pending : n.href === "/expenses" ? pendingExpenses : 0}
+              badge={n.href === "/pending" ? pending + pendingExpenses : n.href === "/expenses" ? pendingExpenses : 0}
             />
           ))}
         </nav>

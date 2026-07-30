@@ -94,7 +94,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
     return NextResponse.json({ ok: true });
   }
 
-  return runWithTenant(sender.tenantId, () => handleUpdate(update));
+  try {
+    return await runWithTenant(sender.tenantId, () => handleUpdate(update));
+  } catch (e) {
+    // Always 200 back to Telegram: a non-200 makes it retry the same update
+    // forever. Log the cause and tell the user something went wrong.
+    console.error("[telegram] handler threw", String((e as Error)?.stack ?? e));
+    await reply(chatId, "Something went wrong on my side handling that. It's been logged.");
+    return NextResponse.json({ ok: true });
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -400,9 +408,18 @@ async function reply(chatId: number, text: string, button?: { text: string; url:
   if (button) {
     body.reply_markup = { inline_keyboard: [[{ text: button.text, url: button.url }]] };
   }
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  }).catch(() => {});
+  // Previously .catch(() => {}) — which meant a failed send looked identical to
+  // a successful one, and "the bot didn't reply" was undebuggable. Log it.
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      console.error("[telegram] sendMessage failed", res.status, (await res.text()).slice(0, 300));
+    }
+  } catch (e) {
+    console.error("[telegram] sendMessage threw", String((e as Error)?.message ?? e));
+  }
 }

@@ -4,6 +4,7 @@ import { repo } from "../lib/repo";
 import { buildPoInvoice } from "../lib/po";
 import { invoiceHtml } from "../lib/invoiceHtml";
 import type { Order, PurchaseOrder } from "../lib/types";
+import { COMPANIES } from "../lib/companies";
 
 let pass = 0, fail = 0;
 function check(label: string, cond: boolean) {
@@ -52,7 +53,7 @@ async function main() {
   check("PO appears in list", (await repo.listPurchaseOrders()).some((p) => p.id === poId));
   check("PO linked to quotation", (await repo.getPurchaseOrder(poId))?.quotationId === quoteId);
 
-  const inv = buildPoInvoice(po);
+  const inv = buildPoInvoice(po, COMPANIES["tien_ngai"]);
   check("PO total = 50*19.55 = 977.5", inv.finalTotal === 977.5);
   const html = invoiceHtml(inv, { docLabel: "PURCHASE ORDER", deliveryDate: po.deliveryDate, hideNotes: true, hideQr: true, forceSignature: true });
   check('renders "PURCHASE ORDER" title', html.includes(">PURCHASE ORDER<"));

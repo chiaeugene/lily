@@ -4,6 +4,7 @@ import { invoiceHtml } from "@/lib/invoiceHtml";
 import { buildPoInvoice } from "@/lib/po";
 import { renderPdf, withAutoPrint } from "@/lib/pdf";
 import { ensureCompaniesHydrated } from "@/lib/companies";
+import { getIssuingCompany } from "@/lib/tenantCompanies";
 
 // Real PDF for a purchase order (Chromium on Render); HTML+autoprint fallback on dev.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,12 +13,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const po = await repo.getPurchaseOrder(id);
   if (!po) return NextResponse.json({ error: "purchase order not found" }, { status: 404 });
 
-  const html = invoiceHtml(buildPoInvoice(po), {
+  const company = await getIssuingCompany("po");
+  const html = invoiceHtml(buildPoInvoice(po, company), {
     docLabel: "PURCHASE ORDER",
     deliveryDate: po.deliveryDate,
     hideNotes: true,
     hideQr: true,
     forceSignature: true,
+    company,
   });
   const pdf = await renderPdf(html);
   if (pdf) {

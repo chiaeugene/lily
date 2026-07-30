@@ -3,6 +3,7 @@ import { repo } from "@/lib/repo";
 import { invoiceHtml } from "@/lib/invoiceHtml";
 import { buildQuoteInvoice } from "@/lib/quote";
 import { ensureCompaniesHydrated } from "@/lib/companies";
+import { getIssuingCompany } from "@/lib/tenantCompanies";
 
 // Returns the standalone, printable QUOTATION HTML (3C skin).
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -10,8 +11,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const quote = await repo.getQuotation(id);
   if (!quote) return NextResponse.json({ error: "quotation not found" }, { status: 404 });
-  const inv = buildQuoteInvoice(quote);
-  return new NextResponse(invoiceHtml(inv, { docLabel: "QUOTATION" }), {
+  const company = await getIssuingCompany("quote");
+  const inv = buildQuoteInvoice(quote, company);
+  return new NextResponse(invoiceHtml(inv, { docLabel: "QUOTATION", company }), {
     headers: { "content-type": "text/html; charset=utf-8" },
   });
 }

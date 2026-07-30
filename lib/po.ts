@@ -1,14 +1,16 @@
-// Purchase order helpers. A PO is Tien Ngai buying raw materials from an
-// external supplier — rendered under the Tien Ngai letterhead as a
-// "PURCHASE ORDER" document using the same printable layout as invoices.
+// Purchase order helpers. A PO is the business buying from an external
+// supplier — rendered under the BUYING company's letterhead as a
+// "PURCHASE ORDER" document, using the same printable layout as invoices.
+//
+// The buying company is passed in rather than hardcoded: it used to be a
+// constant "tien_ngai", which printed every tenant's PO under Tien Ngai's
+// letterhead. See lib/tenantCompanies.ts getIssuingCompany("po").
 
-import type { PurchaseOrder, Invoice, InvoiceLine } from "./types";
+import type { PurchaseOrder, Invoice, InvoiceLine, Company } from "./types";
 import { round2, ringgitInWords } from "./money";
 
-export const PO_COMPANY = "tien_ngai" as const;
-
-/** Build a printable Invoice-shaped object (Tien Ngai skin) from a stored PO. */
-export function buildPoInvoice(po: PurchaseOrder): Invoice {
+/** Build a printable Invoice-shaped object from a stored PO. */
+export function buildPoInvoice(po: PurchaseOrder, c: Company): Invoice {
   let subtotal = 0;
   const lines: InvoiceLine[] = po.lines.map((l, i) => {
     const total = round2(l.qty * l.unitPrice - (l.disc ?? 0));
@@ -28,7 +30,7 @@ export function buildPoInvoice(po: PurchaseOrder): Invoice {
 
   return {
     id: po.id,
-    company: PO_COMPANY,
+    company: c.key,
     invoiceNo: po.id,
     doNo: "",
     yourRef: po.yourRef ?? "",

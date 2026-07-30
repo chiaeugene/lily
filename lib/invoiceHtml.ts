@@ -1,5 +1,6 @@
 import type { Invoice } from "./types";
 import { COMPANIES, STANDARD_NOTES } from "./companies";
+import type { Company } from "./types";
 import { fmt2, fmtUnit } from "./money";
 
 const esc = (s: string) =>
@@ -24,9 +25,12 @@ export function invoiceHtml(
     hideNotes?: boolean; // PO: no bank/T&C notes — TNM is the buyer here, not the seller
     hideQr?: boolean; // PO: not a tax invoice, no LHDN QR
     forceSignature?: boolean; // PO: always needs a signature regardless of company skin
+    /** Issuing entity. Pass it for correct per-tenant letterhead; falls back to
+     *  the hardcoded Tien Ngai group entities only when omitted. */
+    company?: Company;
   } = {},
 ): string {
-  const c = COMPANIES[inv.company];
+  const c = opts.company ?? COMPANIES[inv.company];
   const label = opts.docLabel ?? "INVOICE";
   const isQuote = label === "QUOTATION";
   const isPo = label === "PURCHASE ORDER";

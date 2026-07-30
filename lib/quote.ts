@@ -1,17 +1,16 @@
 // Quotation helpers. A quotation is stored as an order row (source="quotation")
-// and rendered with the customer-facing company skin (3C) as a "QUOTATION"
-// document. Accepting it spawns a normal pending order → the 3-invoice cascade.
+// and rendered as a "QUOTATION" document under the ISSUING company's letterhead.
+// Accepting it spawns a normal pending order.
+//
+// The issuing company is passed in rather than hardcoded: it used to be a
+// constant "3c", which printed every tenant's quotation as 3C Industries.
+// See lib/tenantCompanies.ts getIssuingCompany("quote").
 
-import type { Order, Invoice, InvoiceLine } from "./types";
+import type { Order, Invoice, InvoiceLine, Company } from "./types";
 import { round2, roundTo5Sen, ringgitInWords } from "./money";
-import { COMPANIES } from "./companies";
 
-// The customer-facing seller issues quotations to the end customer.
-export const QUOTE_COMPANY = "3c" as const;
-
-/** Build a printable Invoice object (3C skin) from a stored quotation order. */
-export function buildQuoteInvoice(quote: Order): Invoice {
-  const c = COMPANIES[QUOTE_COMPANY];
+/** Build a printable Invoice object from a stored quotation order. */
+export function buildQuoteInvoice(quote: Order, c: Company): Invoice {
   let subtotal = 0;
   const lines: InvoiceLine[] = quote.lines.map((l, i) => {
     const total = round2(l.qty * l.sellUnitPrice - (l.disc ?? 0));
@@ -33,7 +32,7 @@ export function buildQuoteInvoice(quote: Order): Invoice {
 
   return {
     id: quote.id,
-    company: QUOTE_COMPANY,
+    company: c.key,
     invoiceNo: quote.id,
     doNo: "",
     yourRef: "",

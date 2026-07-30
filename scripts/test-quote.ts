@@ -4,6 +4,7 @@ import { repo } from "../lib/repo";
 import { buildQuoteInvoice } from "../lib/quote";
 import { invoiceHtml } from "../lib/invoiceHtml";
 import type { Order } from "../lib/types";
+import { COMPANIES } from "../lib/companies";
 
 let pass = 0, fail = 0;
 function check(label: string, cond: boolean) {
@@ -35,7 +36,7 @@ async function main() {
   const list = await repo.listQuotations();
   check("quotation appears in list", list.some((q) => q.id === id));
 
-  const inv = buildQuoteInvoice(quote);
+  const inv = buildQuoteInvoice(quote, COMPANIES["3c"]);
   check("quote total = 10*85 + 20*30 = 1450", inv.finalTotal === 1450);
   const html = invoiceHtml(inv, { docLabel: "QUOTATION" });
   check('renders "QUOTATION" title', html.includes(">QUOTATION<"));

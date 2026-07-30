@@ -17,6 +17,7 @@ import { ensureCompaniesHydrated } from "@/lib/companies";
 import { runWithTenant } from "@/lib/tenantScope";
 import { redeemLinkCode, findUserByTelegramId } from "@/lib/telegramLink";
 import type { Order, PurchaseOrder } from "@/lib/types";
+import { getIssuingCompany } from "@/lib/tenantCompanies";
 
 // Explicit prefixes still short-circuit straight to the matching flow — the
 // fastest, cheapest path, and exactly the old behavior. Anything without one
@@ -278,7 +279,8 @@ async function handleQuote(chatId: number, text: string, submittedBy: string, is
 
   // Send the actual PDF, not just a link — it's forwardable straight to the customer.
   await ensureCompaniesHydrated();
-  const sent = await replyDocument(chatId, `${id}.pdf`, invoiceHtml(buildQuoteInvoice(quote), { docLabel: "QUOTATION" }), caption);
+  const quoteCompany = await getIssuingCompany("quote");
+  const sent = await replyDocument(chatId, `${id}.pdf`, invoiceHtml(buildQuoteInvoice(quote, quoteCompany), { docLabel: "QUOTATION", company: quoteCompany }), caption);
   if (!sent) {
     await reply(chatId, caption, url ? { text: "View quotation", url } : undefined);
   }
@@ -310,12 +312,14 @@ async function handlePo(chatId: number, text: string, isGroup: boolean) {
   const caption = `📦 Purchase order ${id} for ${draft.supplierName}\n${lines}`;
 
   await ensureCompaniesHydrated();
-  const html = invoiceHtml(buildPoInvoice(po), {
+  const poCompany = await getIssuingCompany("po");
+  const html = invoiceHtml(buildPoInvoice(po, poCompany), {
     docLabel: "PURCHASE ORDER",
     deliveryDate: po.deliveryDate,
     hideNotes: true,
     hideQr: true,
     forceSignature: true,
+    company: poCompany,
   });
   const sent = await replyDocument(chatId, `${id}.pdf`, html, caption);
   if (!sent) {

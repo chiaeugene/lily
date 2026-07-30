@@ -4,6 +4,7 @@ import { getCurrentActor } from "@/lib/staff";
 import { invoiceHtml } from "@/lib/invoiceHtml";
 import { buildPoInvoice } from "@/lib/po";
 import { ensureCompaniesHydrated } from "@/lib/companies";
+import { getIssuingCompany } from "@/lib/tenantCompanies";
 
 // Returns the standalone, printable PURCHASE ORDER HTML (Tien Ngai skin).
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +12,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const po = await repo.getPurchaseOrder(id);
   if (!po) return NextResponse.json({ error: "purchase order not found" }, { status: 404 });
-  const inv = buildPoInvoice(po);
+  const company = await getIssuingCompany("po");
+  const inv = buildPoInvoice(po, company);
   return new NextResponse(
     invoiceHtml(inv, {
       docLabel: "PURCHASE ORDER",
@@ -19,6 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       hideNotes: true,
       hideQr: true,
       forceSignature: true,
+      company,
     }),
     { headers: { "content-type": "text/html; charset=utf-8" } },
   );

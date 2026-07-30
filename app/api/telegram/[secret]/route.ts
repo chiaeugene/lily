@@ -15,7 +15,7 @@ import { buildPoInvoice } from "@/lib/po";
 import { renderPdf } from "@/lib/pdf";
 import { ensureCompaniesHydrated } from "@/lib/companies";
 import { runWithTenant } from "@/lib/tenantScope";
-import { TIEN_NGAI_TENANT_ID } from "@/lib/tenant";
+import { redeemLinkCode, findUserByTelegramId } from "@/lib/telegramLink";
 import type { Order, PurchaseOrder } from "@/lib/types";
 
 // Explicit prefixes still short-circuit straight to the matching flow — the
@@ -55,19 +55,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sec
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  // A webhook has no session cookie, so every tenant-scoped query would refuse
-  // to run. Resolve which company this message belongs to and run the whole
-  // handler inside that tenant.
-  //
-  // TODO(per-user Telegram linking): look the tenant up from the sender's
-  // Telegram id once users can link their accounts. Until then every message
-  // belongs to the Tien Ngai group, which is the only tenant that exists.
-  const tenantId = TIEN_NGAI_TENANT_ID;
-  return runWithTenant(tenantId, () => handleUpdate(req));
+  const update = await req.json().catch(() => null);
+  const msg = update?.message;
+  const chatId = msg?.chat?.id;
+  const telegramUserId = String(msg?.from?.id ?? "");
+  if (!chatId) return NextResponse.json({ ok: true });
+
+  const rawText: string = msg?.text ?? "";
+
+  // "/start 123456" — bind this Telegram account to a Lily user. This runs
+  // BEFORE any tenant is known, since establishing the tenant is its purpose.
+  const linkMatch = rawText.match(/^\/start\s+(\d{4,8})\b/);
+  if (linkMatch) {
+    const linked = await redeemLinkCode(linkMatch[1], telegramUserId);
+    await reply(
+      chatId,
+      linked
+        ? `✅ You're connected, ${linked.name}.\n\nYou're now sending to ${linked.tenantName}. ` +
+            `Just message me an order, a quotation, a purchase order, or a photo of a receipt — ` +
+            `I'll work out which it is.\n\nSend /help any time.`
+        : `That code didn't work — it may have already been used or expired. ` +
+            `Ask your admin to generate a new one for you.`,
+    );
+    return NextResponse.json({ ok: true });
+  }
+
+  // Every other message: identify the sender, and therefore their company.
+  // A webhook carries no session cookie, so without this every tenant-scoped
+  // query would (correctly) refuse to run.
+  const sender = await findUserByTelegramId(telegramUserId);
+  if (!sender) {
+    await reply(
+      chatId,
+      "👋 I don't recognise this Telegram account yet.\n\n" +
+        "Ask your admin for your connection code, then send:\n/start YOUR_CODE",
+    );
+    return NextResponse.json({ ok: true });
+  }
+
+  return runWithTenant(sender.tenantId, () => handleUpdate(update));
 }
 
-async function handleUpdate(req: NextRequest) {
-  const update = await req.json().catch(() => null);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleUpdate(update: any) {
   const msg    = update?.message;
   const chatId = msg?.chat?.id;
   const userId = String(msg?.from?.id ?? "");

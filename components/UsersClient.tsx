@@ -19,6 +19,19 @@ export default function UsersClient({ users, currentUserId }: { users: User[]; c
   const [form, setForm] = useState(BLANK);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [onboarding, setOnboarding] = useState<{ name: string; code: string; message: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function issueCode(id: string, name: string) {
+    const res = await fetch(`/api/users/${id}/link-code`, { method: "POST" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      alert(data?.error || "Couldn't generate a connection code.");
+      return;
+    }
+    setCopied(false);
+    setOnboarding({ name, code: data.code, message: data.message });
+  }
 
   async function add() {
     setError("");
@@ -117,7 +130,10 @@ export default function UsersClient({ users, currentUserId }: { users: User[]; c
                 {u.mustChangePassword && <span className="text-warn"> · password change recommended</span>}
               </div>
             </div>
-            <button onClick={() => resetPassword(u.id, u.name)} className="text-[12px] font-medium text-primary hover:text-primary-hover px-2 py-1.5">
+            <button onClick={() => issueCode(u.id, u.name)} className="text-[12px] font-medium text-primary hover:text-primary-hover px-2 py-1.5">
+              Connect Telegram
+            </button>
+            <button onClick={() => resetPassword(u.id, u.name)} className="text-[12px] font-medium text-muted hover:text-ink px-2 py-1.5">
               Reset password
             </button>
             {u.id !== currentUserId && (
@@ -133,6 +149,45 @@ export default function UsersClient({ users, currentUserId }: { users: User[]; c
           </div>
         ))}
       </div>
+
+      {onboarding && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-ink/50 backdrop-blur-sm" onClick={() => setOnboarding(null)} />
+          <div className="relative bg-surface rounded-2xl shadow-pop w-full max-w-lg p-5 max-h-[85vh] overflow-y-auto">
+            <h3 className="font-semibold text-ink">Connect {onboarding.name} to Telegram</h3>
+            <p className="text-[13px] text-muted mt-1">
+              Send them this message. The code works once and links their Telegram account to their Lily login.
+            </p>
+
+            <div className="mt-4 rounded-xl border border-line bg-canvas p-3 text-center">
+              <div className="text-[11px] uppercase tracking-wide text-faint">Connection code</div>
+              <div className="text-2xl font-semibold tnum tracking-[0.2em] text-ink mt-1">{onboarding.code}</div>
+            </div>
+
+            <pre className="mt-4 whitespace-pre-wrap rounded-xl border border-line bg-canvas p-3 text-[12px] leading-relaxed text-ink font-sans">
+              {onboarding.message}
+            </pre>
+
+            <div className="mt-4 flex gap-2 justify-end">
+              <button
+                onClick={() => setOnboarding(null)}
+                className="text-[13px] text-muted hover:bg-canvas rounded-lg px-3 py-2"
+              >
+                Close
+              </button>
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(onboarding.message).catch(() => {});
+                  setCopied(true);
+                }}
+                className="text-[13px] font-semibold bg-primary hover:bg-primary-hover text-white rounded-lg px-4 py-2"
+              >
+                {copied ? "Copied ✓" : "Copy message"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

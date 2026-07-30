@@ -77,7 +77,9 @@ export async function addExpense(input: {
     DEMO_EXPENSES.unshift(expense);
     return expense;
   }
-  await (await scopedDb()).from("expenses").insert({
+  // Supabase reports write failures in the response rather than throwing, so
+  // an unchecked insert silently no-ops and the caller reports success.
+  const { error } = await (await scopedDb()).from("expenses").insert({
     id: expense.id,
     source: expense.source,
     raw_message: expense.rawMessage ?? null,
@@ -93,6 +95,7 @@ export async function addExpense(input: {
     parse_notes: expense.parseNotes ?? null,
     created_at: expense.createdAt,
   });
+  if (error) throw new Error(`addExpense failed: ${error.message}`);
   return expense;
 }
 

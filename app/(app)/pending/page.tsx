@@ -43,22 +43,43 @@ export default async function PendingPage() {
             </div>
           </Card>
         ) : (
-          <>
-            {orders.length > 0 && (
-              <Card title={`Orders awaiting verification · ${orders.length}`}>
-                <PendingList orders={orders} />
-              </Card>
-            )}
-            {pendingExpenses.length > 0 && (
-              <Card title={`Expenses awaiting verification · ${pendingExpenses.length}`}>
-                <div className="space-y-3">
-                  {pendingExpenses.map((e) => (
-                    <ExpenseVerifyCard key={e.id} expense={e} />
-                  ))}
-                </div>
-              </Card>
-            )}
-          </>
+          // Two columns because the bot classifies into exactly two families:
+          // money coming IN (a sales document) and money going OUT (a purchase
+          // or expense). Keeping them side by side mirrors that split instead
+          // of mixing unrelated decisions into one queue.
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-profit" />
+                <h2 className="text-[13px] font-semibold text-ink">Money in · sales documents</h2>
+                <span className="text-[12px] text-faint">{orders.length}</span>
+              </div>
+              {orders.length === 0 ? (
+                <Card>
+                  <p className="text-[13px] text-muted py-6 text-center">No sales documents waiting.</p>
+                </Card>
+              ) : (
+                <Card pad={false}>
+                  <PendingList orders={orders} />
+                </Card>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-loss" />
+                <h2 className="text-[13px] font-semibold text-ink">Money out · expenses &amp; purchases</h2>
+                <span className="text-[12px] text-faint">{pendingExpenses.length}</span>
+              </div>
+              {pendingExpenses.length === 0 ? (
+                <Card>
+                  <p className="text-[13px] text-muted py-6 text-center">No expenses waiting.</p>
+                </Card>
+              ) : (
+                pendingExpenses.map((e) => <ExpenseVerifyCard key={e.id} expense={e} />)
+              )}
+            </div>
+          </div>
         )}
       </div>
     </>

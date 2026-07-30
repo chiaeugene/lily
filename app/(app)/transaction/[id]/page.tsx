@@ -24,7 +24,7 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
     <>
       <PageHeader
         title={`Transaction ${tx.id}`}
-        sub={`${tx.customerName} · ${tx.date} · one order → three linked invoices`}
+        sub={`${tx.customerName} · ${tx.date} · ${tx.invoices.length === 1 ? "1 invoice" : `one order → ${tx.invoices.length} linked invoices`}`}
         action={
           <Link href={`/journey/${tx.id}`} className="text-[13px] font-medium text-primary hover:text-primary-hover hidden sm:inline">
             View journey
@@ -44,7 +44,7 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
 
         <div className="bg-white rounded-xl shadow-card p-5 flex flex-wrap items-center gap-8 text-sm">
           <div>
-            <div className="text-xs text-slate-400">Customer pays (3C)</div>
+            <div className="text-xs text-slate-400">{tx.invoices.length > 1 ? "Customer pays (3C)" : "Customer pays"}</div>
             <div className={`text-lg font-bold tnum ${voided ? "line-through text-muted" : ""}`}>RM {fmt2(tx.grandTotalSell)}</div>
           </div>
           <div>
@@ -78,7 +78,7 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
               target="_blank"
               className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg px-4 py-2"
             >
-              <IconDownload size={16} /> Save all 3 (PDF bundle)
+              <IconDownload size={16} /> Save all {tx.invoices.length} (PDF bundle)
             </Link>
           </div>
         </div>
@@ -111,11 +111,16 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
           ))}
         </div>
 
-        <p className="text-xs text-slate-400">
-          Flow: <b>{COMPANY_LABELS.tien_ngai}</b> bills <b>{COMPANY_LABELS.prim}</b> · {COMPANY_LABELS.prim} bills{" "}
-          <b>{COMPANY_LABELS["3c"]}</b> · {COMPANY_LABELS["3c"]} bills <b>{tx.customerName}</b>. Same goods &amp;
-          quantity; price rises at each tier per the margin rules.
-        </p>
+        {/* Only the Tien Ngai group runs a multi-company cascade. Describing
+            that flow on a single-company tenant's transaction printed three
+            other businesses' names onto their invoice page. */}
+        {tx.invoices.length > 1 && (
+          <p className="text-xs text-slate-400">
+            Flow: <b>{COMPANY_LABELS.tien_ngai}</b> bills <b>{COMPANY_LABELS.prim}</b> · {COMPANY_LABELS.prim} bills{" "}
+            <b>{COMPANY_LABELS["3c"]}</b> · {COMPANY_LABELS["3c"]} bills <b>{tx.customerName}</b>. Same goods &amp;
+            quantity; price rises at each tier per the margin rules.
+          </p>
+        )}
       </div>
     </>
   );

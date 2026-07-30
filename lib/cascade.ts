@@ -8,6 +8,7 @@ import type {
   CompanyKey,
 } from "./types";
 import { COMPANIES, CHAIN } from "./companies";
+import type { Company } from "./types";
 import { round2, roundTo5Sen, ringgitInWords } from "./money";
 
 /**
@@ -38,6 +39,9 @@ export interface BuildOptions {
    *  allocateInvoiceNo is not called for it — the auto counter is left untouched
    *  so the sequence doesn't skip a number for one that was hand-typed. */
   invoiceNoOverrides?: Partial<Record<CompanyKey, string>>;
+  /** Company lookup. Defaults to the hardcoded Tien Ngai group entities;
+   *  other tenants pass their own so their key resolves. */
+  companyLookup?: Record<string, Company>;
 }
 
 function ruleFor(rules: MarginRule[], productId: string, layer: number) {
@@ -47,8 +51,8 @@ function ruleFor(rules: MarginRule[], productId: string, layer: number) {
   );
 }
 
-function finalize(company: CompanyKey, subtotal: number) {
-  const c = COMPANIES[company];
+function finalize(company: CompanyKey, subtotal: number, lookup: Record<string, Company> = COMPANIES) {
+  const c = lookup[company] ?? COMPANIES[company];
   if (c.showRoundingRow) {
     const finalTotal = roundTo5Sen(subtotal);
     return { subtotal, roundingAdj: round2(finalTotal - subtotal), finalTotal };
@@ -89,11 +93,13 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
   //
   //    This ensures the customer always pays exactly what was entered, and only
   //    the tiers actually involved in the deal share the margin.
-  const priceByCompany: Record<CompanyKey, Map<string, number>> = {
-    prim: new Map(),
-    "3c": new Map(),
-    tien_ngai: new Map(),
-  };
+  // Keyed off the companies actually being generated, not a fixed list of the
+  // Tien Ngai group's three. A single-company tenant uses a key like "primary",
+  // which isn't in that list — the lookup returned undefined and threw.
+  const priceByCompany: Record<string, Map<string, number>> = {};
+  for (const co of new Set<string>([...CHAIN, ...toGenerate])) {
+    priceByCompany[co] = new Map<string, number>();
+  }
   for (const ol of order.lines) {
     priceByCompany[lastSelected].set(ol.productId, ol.sellUnitPrice);
     for (let i = toGenerate.length - 1; i > 0; i--) {
@@ -118,8 +124,9 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
       }, 0),
     );
   }
-  const lastFinalTotal  = finalize(lastSelected,  selectedSubtotal(lastSelected)).finalTotal;
-  const firstFinalTotal = finalize(firstSelected, selectedSubtotal(firstSelected)).finalTotal;
+  const lookup = opts.companyLookup ?? COMPANIES;
+  const lastFinalTotal  = finalize(lastSelected,  selectedSubtotal(lastSelected), lookup).finalTotal;
+  const firstFinalTotal = finalize(firstSelected, selectedSubtotal(firstSelected), lookup).finalTotal;
 
   // 4. Who each company bills: the next *selected* company, or the end customer
   //    if this company is the last selected one. This lets TNM or Prim bill the
@@ -130,12 +137,12 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
     if (!nextSelected) {
       return { name: order.customerName, addr: order.customerAddressLines, tel: order.customerTel };
     }
-    const buyer = COMPANIES[nextSelected];
+    const buyer = lookup[nextSelected] ?? COMPANIES[nextSelected];
     return { name: buyer.name, addr: buyer.addressLines, tel: buyer.tel };
   }
   // Build invoices in tick order (toGenerate preserves the user's selection order).
   const invoices: Invoice[] = toGenerate.map((company) => {
-    const c = COMPANIES[company];
+    const c = lookup[company] ?? COMPANIES[company];
     const priceMap = priceByCompany[company];
     let subtotal = 0;
     const lines: InvoiceLine[] = order.lines.map((ol, i) => {
@@ -154,7 +161,7 @@ export function buildCascade(order: Order, opts: BuildOptions): Transaction {
         total,
       };
     });
-    const totals = finalize(company, round2(subtotal));
+    const totals = finalize(company, round2(subtotal), lookup);
     const invoiceNo = opts.invoiceNoOverrides?.[company] || allocateInvoiceNo(company);
     const to = billTo(company);
     return {

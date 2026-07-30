@@ -7,6 +7,7 @@ import { store } from "./store";
 import { buildCascade } from "./cascade";
 import { formatInvoiceNo } from "./invoiceNumber";
 import { COMPANIES, CHAIN, ensureCompaniesHydrated } from "./companies";
+import { getTenantCompanies } from "./tenantCompanies";
 import { scopedDb } from "./scopedDb";
 import type {
   Customer,
@@ -419,7 +420,18 @@ export const repo = {
     } = {},
   ): Promise<Transaction | undefined> {
     const { companies, yourRef, invoiceNoOverrides, termsDays } = opts;
-    const toGenerate = companies && companies.length > 0 ? companies : CHAIN;
+
+    // The 3-invoice cascade is Tien Ngai's arrangement, not a universal rule.
+    // This used to default to CHAIN unconditionally, so verifying an order for
+    // ANY other company would have issued three invoices from Tien Ngai, Prim
+    // Paper and 3C Industries — someone else's letterhead on their revenue.
+    const tenantCompanies = await getTenantCompanies();
+    const cascade = tenantCompanies.length > 1;
+    const companyLookup: Record<string, Company> = Object.fromEntries(
+      tenantCompanies.map((c) => [c.key, c]),
+    );
+    const defaultCompanies = cascade ? CHAIN : [tenantCompanies[0].key];
+    const toGenerate = companies && companies.length > 0 ? companies : defaultCompanies;
 
     if (isDemoMode) {
       const order = store.orders.find((o) => o.id === orderId);
@@ -432,9 +444,10 @@ export const repo = {
         companies: toGenerate,
         yourRef,
         invoiceNoOverrides,
+        companyLookup,
         allocateInvoiceNo: (co: CompanyKey) => {
           store.counters[co] += 1;
-          return formatInvoiceNo(co, store.counters[co]);
+          return formatInvoiceNo(co, store.counters[co], new Date(), companyLookup[co]);
         },
       };
       const tx = buildCascade(order, buildOpts);
@@ -490,7 +503,8 @@ export const repo = {
       orderId: order.id,
       marginRules,
       companies: toGenerate,
-      allocateInvoiceNo: (co: CompanyKey) => formatInvoiceNo(co, counterMap[co]),
+      companyLookup,
+      allocateInvoiceNo: (co: CompanyKey) => formatInvoiceNo(co, counterMap[co], new Date(), companyLookup[co]),
     });
 
     tx.termsDays = termsDays ?? 0;

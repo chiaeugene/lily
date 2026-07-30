@@ -25,7 +25,12 @@ export async function GET() {
       TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME || "MISSING (onboarding link will be generic)",
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || "MISSING",
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? "set" : "MISSING (bot can't classify)",
+      GROQ_API_KEY: process.env.GROQ_API_KEY ? "set" : "MISSING (voice notes will be rejected)",
+      GROQ_STT_MODEL: process.env.GROQ_STT_MODEL || "whisper-large-v3 (default)",
     },
+    voiceNotes: process.env.GROQ_API_KEY
+      ? "enabled — voice messages are transcribed then parsed like text"
+      : "DISABLED — the bot will reply that it couldn't read the voice message",
   };
 
   // What Telegram thinks of our webhook — last_error_message is the money shot.

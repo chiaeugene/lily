@@ -7,6 +7,8 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 export default async function AnalysisPage() {
   const all = await repo.allTransactions();
+  // More than one invoice per transaction == this tenant runs a cascade.
+  const cascade = all.some((t) => t.invoices.length > 1);
   const txs = all.filter((t) => t.status !== "void"); // void excluded from analytics
 
   const byProduct = new Map<string, { qty: number; sell: number }>();
@@ -120,7 +122,10 @@ export default async function AnalysisPage() {
         </Card>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          <Card title="Margin earned by tier">
+          {/* Per-tier margin only means something for the Tien Ngai group's
+              3-company cascade. On a single-company tenant it printed three
+              unrelated businesses' names onto their own sales report. */}
+          {cascade && <Card title="Margin earned by tier">
             <div className="space-y-4">
               <TierBar label="Prim Paper" sub="margin on sale to 3C" value={tierMargin.prim} max={maxTier} cls="bg-amber-500" />
               <TierBar label="3C Industries" sub="margin on sale to customer" value={tierMargin["3c"]} max={maxTier} cls="bg-violet-500" />
@@ -129,7 +134,7 @@ export default async function AnalysisPage() {
               <span className="text-muted">Total group margin</span>
               <span className="tnum font-semibold text-profit">RM {fmt2(tierMargin.prim + tierMargin["3c"])}</span>
             </div>
-          </Card>
+          </Card>}
 
           <Card title="Revenue by product">
             {byProduct.size === 0 ? (

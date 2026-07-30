@@ -2,7 +2,7 @@ import Link from "next/link";
 import { repo } from "@/lib/repo";
 import { listExpenses } from "@/lib/expenses";
 import { PageHeader, Card } from "@/components/ui";
-import PendingList from "@/components/PendingList";
+import OrderVerifyCard from "@/components/OrderVerifyCard";
 import ExpenseVerifyCard from "@/components/ExpenseVerifyCard";
 import { IconCheck, IconArrowRight } from "@/components/icons";
 
@@ -59,9 +59,7 @@ export default async function PendingPage() {
                   <p className="text-[13px] text-muted py-6 text-center">No sales documents waiting.</p>
                 </Card>
               ) : (
-                <Card pad={false}>
-                  <PendingList orders={orders} />
-                </Card>
+                orders.map((o) => <OrderVerifyCard key={o.id} order={o} />)
               )}
             </div>
 

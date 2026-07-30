@@ -92,7 +92,10 @@ export async function buildJourney(rawId: string): Promise<Journey | null> {
       statusTone: order.status === "verified" ? "profit" : order.status === "rejected" ? "loss" : "warn",
       date: order.date,
       amount: order.lines.reduce((s, l) => s + l.qty * l.sellUnitPrice - (l.disc ?? 0), 0),
-      href: `/dashboard#pending`,
+      // Orders awaiting a decision live on the Pending review queue — this
+      // used to point at /dashboard#pending, an anchor that no longer exists,
+      // so clicking the Order step dumped you on the dashboard.
+      href: order.status === "pending" ? "/pending" : `/journey/${order.id}`,
     });
   }
 

@@ -28,16 +28,45 @@ export async function classifyMessage(
   }
   content.push({
     type: "text",
-    text: `You triage incoming Telegram messages for a Malaysian paper/machinery trading business's order channel.
-Classify this message (and attached image, if any) into exactly one category:
+    text: `You triage incoming Telegram messages for a Malaysian SME's back-office assistant.
+The business may sell physical goods OR services (trucking, warehousing, logistics).
 
-- quotation: asking to draft a price quote for a customer — not a firm order yet
-- purchase_order: the business buying raw materials/goods FROM a supplier (it is the buyer)
-- sales_order: a firm customer order to fulfill and invoice now (product, qty, price for a sale)
-- expense: a receipt, bill, utility/rental/professional-fee invoice, or any business expense document — money going OUT that is not raw-material procurement for resale. Also use this for any photo that looks like a receipt or vendor invoice.
-- unclear: casual chatter, or genuinely ambiguous
+FIRST decide the DIRECTION of money. That is what actually separates these
+categories - not the words "order" or "PO", which appear on both sides:
 
-Message text: """${text || "(none — see attached image)"}"""
+  MONEY IN  - someone is buying FROM us (we will invoice them; we get paid)
+  MONEY OUT - we are buying FROM someone else (we get invoiced; we pay)
+
+Then pick exactly one category:
+
+- sales_order  [MONEY IN] A firm order from a CUSTOMER for us to fulfil and invoice.
+    This INCLUDES a customer sending us THEIR OWN purchase order ("our PO 12345",
+    "attached is our purchase order", a customer PO photo/PDF). A customer's PO is
+    a firm order TO US, so it is a sales_order and NEVER a purchase_order.
+    Also includes services being booked (trips, deliveries, pallets, storage)
+    where a counterparty and a price are given.
+
+- quotation    [MONEY IN, not yet firm] A request to PRICE something, or to draft
+    or send a quote. Nothing is owed yet. "how much for", "can you quote",
+    "send them a price".
+
+- purchase_order [MONEY OUT] WE are the buyer, ordering goods or materials from a
+    SUPPLIER, before any bill exists. Only choose this when the business itself is
+    clearly placing an order with a vendor.
+
+- expense      [MONEY OUT, already incurred] A receipt, bill, or supplier invoice
+    already issued to us - fuel, utilities, rental, tolls, repairs, insurance,
+    professional fees. Any photo that looks like a receipt or a bill addressed to us.
+
+- unclear      Casual chatter, or genuinely ambiguous.
+
+Tie-breakers:
+- Named counterparty + quantity + price, with no sign that WE are the buyer -> sales_order.
+- The word "PO" decides nothing on its own. Ask: who is the BUYER? If the other
+  party is buying, it is a sales_order. If we are buying, it is a purchase_order.
+- A bill already issued to us -> expense, not purchase_order.
+
+Message text: """${text || "(none - see attached image)"}"""
 
 Respond with ONLY the single category word, nothing else.`,
   });

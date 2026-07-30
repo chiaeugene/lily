@@ -7,6 +7,7 @@ import { ConfidencePill } from "@/components/ui";
 import { IconChevron, IconCheck, IconX, IconSparkle } from "@/components/icons";
 import { fmt2 } from "@/lib/money";
 import { CHAIN, COMPANY_LABELS } from "@/lib/companies";
+import { toast } from "sonner";
 
 function billsTo(company: CompanyKey, customerName: string, active: CompanyKey[]): string {
   const myIdx = active.indexOf(company);
@@ -140,7 +141,7 @@ function ReviewSheet({ order, onClose }: { order: Order; onClose: () => void }) 
       router.refresh(); // re-render the persistent layout so the sidebar badge updates
     } else {
       setBusy("");
-      alert(data?.error || "Couldn't verify this order — please try again.");
+      toast.error(data?.error || "Couldn't verify this order — please try again.");
       router.refresh();
     }
   }

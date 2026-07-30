@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Payslip } from "@/lib/types";
 import { fmt2 } from "@/lib/money";
 import { IconPrinter, IconChevron } from "@/components/icons";
+import { toast } from "sonner";
 
 export default function PayslipRow({ payslip }: { payslip: Payslip }) {
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function PayslipRow({ payslip }: { payslip: Payslip }) {
       if (!res.ok) throw new Error();
       router.refresh();
     } catch {
-      alert("Couldn't update paid status — please try again.");
+      toast.error("Couldn't update paid status — please try again.");
     } finally {
       setBusy(false);
     }
@@ -52,7 +53,7 @@ export default function PayslipRow({ payslip }: { payslip: Payslip }) {
       setEditing(false);
       router.refresh();
     } catch {
-      alert("Couldn't save changes — please try again.");
+      toast.error("Couldn't save changes — please try again.");
     } finally {
       setBusy(false);
     }

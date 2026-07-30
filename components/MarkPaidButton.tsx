@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconCheck } from "@/components/icons";
+import { toast } from "sonner";
 
 export default function MarkPaidButton({ transactionId, paid }: { transactionId: string; paid: boolean }) {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function MarkPaidButton({ transactionId, paid }: { transactionId:
       if (!res.ok) throw new Error();
       router.refresh();
     } catch {
-      alert("Couldn't update payment status — please try again.");
+      toast.error("Couldn't update payment status — please try again.");
     } finally {
       setBusy(false);
     }

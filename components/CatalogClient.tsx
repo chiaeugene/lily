@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Customer, Product } from "@/lib/types";
 import { Card } from "@/components/ui";
 import { IconPencil, IconCheck, IconX, IconShare } from "@/components/icons";
+import { toast } from "sonner";
 
 export default function CatalogClient({
   customers,
@@ -105,12 +106,12 @@ function CustomerRow({
     const res = await fetch(`/api/customers/${customer.id}/portal-link`, { method: "POST" });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.token) {
-      alert("Couldn't create a portal link — please try again.");
+      toast.error("Couldn't create a portal link — please try again.");
       return;
     }
     const url = `${window.location.origin}/client/${data.token}`;
     await navigator.clipboard.writeText(url).catch(() => {});
-    alert(`Portal link copied:\n${url}`);
+    toast.error(`Portal link copied:\n${url}`);
   }
 
   if (!editing) {

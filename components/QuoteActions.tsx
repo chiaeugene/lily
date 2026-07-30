@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconPrinter, IconCheck, IconArrowRight, IconShare } from "@/components/icons";
+import { toast } from "sonner";
 
 export default function QuoteActions({ id, status }: { id: string; status: string }) {
   const router = useRouter();
@@ -51,7 +52,7 @@ export default function QuoteActions({ id, status }: { id: string; status: strin
     } else {
       setBusy(false);
       const body = await res.json().catch(() => null);
-      alert(body?.error || "Couldn't accept this quotation — please try again.");
+      toast.error(body?.error || "Couldn't accept this quotation — please try again.");
     }
   }
 

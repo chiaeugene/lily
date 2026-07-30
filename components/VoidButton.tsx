@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconX } from "@/components/icons";
+import { toast } from "sonner";
 
 export default function VoidButton({ transactionId }: { transactionId: string }) {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function VoidButton({ transactionId }: { transactionId: string })
       setOpen(false);
       router.refresh();
     } catch {
-      alert("Couldn't void this transaction — please try again.");
+      toast.error("Couldn't void this transaction — please try again.");
     } finally {
       setBusy(false);
     }

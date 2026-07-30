@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Expense } from "@/lib/types";
 import { fmt2 } from "@/lib/money";
+import { toast } from "sonner";
 
 const STATUS_CLS: Record<string, string> = {
   pending_verification: "bg-amber-50 text-amber-700 border-amber-200",
@@ -34,7 +35,7 @@ export default function ExpenseListRow({ expense }: { expense: Expense }) {
       setPaying(false);
       router.refresh();
     } catch {
-      alert("Couldn't record this payment — please try again.");
+      toast.error("Couldn't record this payment — please try again.");
     } finally {
       setBusy(false);
     }

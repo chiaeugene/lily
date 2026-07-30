@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Expense } from "@/lib/types";
 import { EXPENSE_CATEGORIES } from "@/lib/types";
+import { toast } from "sonner";
 
 export default function ExpenseVerifyCard({ expense }: { expense: Expense }) {
   const router = useRouter();
@@ -27,7 +28,7 @@ export default function ExpenseVerifyCard({ expense }: { expense: Expense }) {
       if (!res.ok) throw new Error();
       router.refresh();
     } catch {
-      alert("Couldn't verify this expense — please try again.");
+      toast.error("Couldn't verify this expense — please try again.");
     } finally {
       setBusy("");
     }
@@ -45,7 +46,7 @@ export default function ExpenseVerifyCard({ expense }: { expense: Expense }) {
       if (!res.ok) throw new Error();
       router.refresh();
     } catch {
-      alert("Couldn't reject this expense — please try again.");
+      toast.error("Couldn't reject this expense — please try again.");
     } finally {
       setBusy("");
     }

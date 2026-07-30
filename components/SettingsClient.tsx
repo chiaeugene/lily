@@ -6,6 +6,7 @@ import type { Company, Product, MarginRule, MarginType } from "@/lib/types";
 import { Card } from "@/components/ui";
 import { IconCheck, IconPencil } from "@/components/icons";
 import { deriveUpstreamPrice } from "@/lib/cascade";
+import { toast } from "sonner";
 
 function fmt(n: number) {
   return n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -56,7 +57,7 @@ export default function SettingsClient({
     if (!res.ok) {
       // roll back the optimistic update
       setRules((rs) => [...rs.filter((r) => !(r.productId === productId && r.layer === layer)), current]);
-      alert("Couldn't save that margin — please try again.");
+      toast.error("Couldn't save that margin — please try again.");
     }
   }
 

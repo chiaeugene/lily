@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { User } from "@/lib/tenant";
 import { Card } from "@/components/ui";
+import { toast } from "sonner";
 
 const BLANK = { name: "", email: "", password: "", role: "staff" };
 
@@ -26,7 +27,7 @@ export default function UsersClient({ users, currentUserId }: { users: User[]; c
     const res = await fetch(`/api/users/${id}/link-code`, { method: "POST" });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-      alert(data?.error || "Couldn't generate a connection code.");
+      toast.error(data?.error || "Couldn't generate a connection code.");
       return;
     }
     setCopied(false);
@@ -60,7 +61,7 @@ export default function UsersClient({ users, currentUserId }: { users: User[]; c
     });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      alert(data?.error || "Couldn't update that user.");
+      toast.error(data?.error || "Couldn't update that user.");
       return;
     }
     router.refresh();
@@ -75,7 +76,7 @@ export default function UsersClient({ users, currentUserId }: { users: User[]; c
       body: JSON.stringify({ password: pw }),
     });
     const data = await res.json().catch(() => null);
-    alert(res.ok ? "Password updated." : data?.error || "Couldn't update the password.");
+    toast[res.ok ? "success" : "error"](res.ok ? "Password updated." : data?.error || "Couldn't update the password.");
   }
 
   return (

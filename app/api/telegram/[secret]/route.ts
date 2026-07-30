@@ -52,7 +52,17 @@ Terms: C.O.D.`;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ secret: string }> }) {
   const { secret } = await params;
-  if (secret !== (process.env.TELEGRAM_WEBHOOK_SECRET || "lily-hook")) {
+  // Trimmed on both sides: a secret pasted into a hosting dashboard very
+  // easily carries a trailing space or newline, which made this comparison
+  // fail and returned 403 to Telegram — the bot then went completely silent
+  // with no clue why. Compared case-sensitively but whitespace-tolerantly.
+  const expected = (process.env.TELEGRAM_WEBHOOK_SECRET || "lily-hook").trim();
+  if (decodeURIComponent(secret).trim() !== expected) {
+    console.error(
+      `[telegram] webhook secret mismatch — URL segment ${JSON.stringify(secret)} ` +
+        `did not match TELEGRAM_WEBHOOK_SECRET (length ${expected.length}). ` +
+        `Re-run /api/setup-webhook to re-register with the current value.`,
+    );
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

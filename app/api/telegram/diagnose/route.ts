@@ -33,6 +33,38 @@ export async function GET() {
       : "DISABLED — the bot will reply that it couldn't read the voice message",
   };
 
+  // A key being PRESENT is not the same as a key being VALID — an expired or
+  // mistyped key looks identical in the dashboard and only fails at the moment
+  // someone sends a voice note. Probe Groq for real.
+  if (process.env.GROQ_API_KEY) {
+    try {
+      const r = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+      });
+      const model = process.env.GROQ_STT_MODEL || "whisper-large-v3";
+      if (r.ok) {
+        const body = (await r.json()) as { data?: { id: string }[] };
+        const ids = (body.data ?? []).map((m) => m.id);
+        out.groqCheck = {
+          keyValid: true,
+          sttModelAvailable: ids.includes(model),
+          model,
+          hint: ids.includes(model)
+            ? "Voice notes should transcribe correctly."
+            : `Key works but "${model}" is not in this account's model list.`,
+        };
+      } else {
+        out.groqCheck = {
+          keyValid: false,
+          status: r.status,
+          hint: r.status === 401 ? "Key rejected by Groq — expired or mistyped." : "Groq returned an error.",
+        };
+      }
+    } catch (e) {
+      out.groqCheck = { keyValid: false, error: String((e as Error)?.message ?? e) };
+    }
+  }
+
   // What Telegram thinks of our webhook — last_error_message is the money shot.
   if (token) {
     try {

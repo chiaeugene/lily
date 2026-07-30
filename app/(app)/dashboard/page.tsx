@@ -63,7 +63,7 @@ export default async function Dashboard() {
     <>
       <PageHeader title="Dashboard" sub={session?.tenant.name} />
       <div className="p-4 md:p-8 space-y-6 max-w-[1200px] w-full mx-auto">
-        <DashboardHero pending={k.pending} marginThisMonth={k.marginThisMonth} />
+        <DashboardHero pending={k.pending} marginThisMonth={k.marginThisMonth} tenantName={session?.tenant.name ?? ""} />
 
         {/* Quick actions sit directly under the hero so they're reachable
             without scrolling — starting work is the most common intent. */}

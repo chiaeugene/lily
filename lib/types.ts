@@ -261,6 +261,28 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
+/**
+ * Cost of sales vs overhead — the split a real P&L needs.
+ *
+ * Direct costs rise and fall with the work you actually do (fuel and tolls for
+ * a delivery, materials consumed on a job). Overheads are what you pay whether
+ * or not a single job happens this month (rent, insurance, office).
+ *
+ * Gross profit = revenue − direct costs, and it answers "does the work itself
+ * make money?". Net profit then subtracts overheads. Lumping them together
+ * hides whether a business is unprofitable because its jobs are underpriced or
+ * because its fixed costs are too high.
+ */
+export const DIRECT_COST_CATEGORIES: readonly string[] = [
+  "Raw Materials",
+  "Transport & Logistics",
+  "Repairs & Maintenance",
+];
+
+export function isDirectCost(category: string): boolean {
+  return DIRECT_COST_CATEGORIES.includes(category);
+}
+
 export type ExpenseStatus = "pending_verification" | "verified" | "rejected";
 export type ExpensePaymentStatus = "unpaid" | "paid";
 

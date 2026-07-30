@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { repo, isDemoMode } from "@/lib/repo";
-import { getCurrentActor } from "@/lib/staff";
+import { getSession } from "@/lib/currentUser";
+import { listExpenses } from "@/lib/expenses";
 import { LilyLogo } from "@/components/Logo";
 import NavItem from "@/components/NavItem";
 import LogoutButton from "@/components/LogoutButton";
@@ -14,22 +16,38 @@ import {
   IconQuote,
   IconBox,
   IconUsers,
+  IconReceipt,
+  IconRoute,
+  IconTrendUp,
 } from "@/components/icons";
 
 const NAV = [
   { href: "/dashboard",  label: "Dashboard",     Icon: IconDashboard },
   { href: "/quotation",  label: "Quotation",      Icon: IconQuote },
   { href: "/po",         label: "Purchase Orders", Icon: IconBox },
+  { href: "/journey",    label: "Order Journey",  Icon: IconRoute },
+  { href: "/expenses",   label: "Expenses",       Icon: IconReceipt },
   { href: "/payroll",    label: "Payroll",        Icon: IconUsers },
   { href: "/search",     label: "Search",         Icon: IconSearch },
   { href: "/analysis",   label: "Sales Analysis", Icon: IconChart },
+  { href: "/pnl",        label: "P&L",            Icon: IconTrendUp },
   { href: "/records",    label: "Records",        Icon: IconArchive },
   { href: "/settings",   label: "Settings",       Icon: IconSettings },
 ];
 
 export default async function Shell({ children }: { children: React.ReactNode }) {
-  const pending = (await repo.listPendingOrders()).length;
-  const actor = await getCurrentActor();
+  // Middleware only proves the cookie signature is intact — it can't do a DB
+  // lookup on the Edge runtime. A cookie signed before the multi-tenant switch
+  // (or for a since-deleted user) verifies but resolves to no session, so the
+  // real check happens here.
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const [pendingOrders, expenses] = await Promise.all([repo.listPendingOrders(), listExpenses()]);
+  const pending = pendingOrders.length;
+  const pendingExpenses = expenses.filter((e) => e.status === "pending_verification").length;
+  const actor = session.user.name;
+  const tenantName = session.tenant.name;
   return (
     <div className="min-h-dvh flex bg-canvas">
       {/* Desktop sidebar — hidden on mobile */}
@@ -44,14 +62,14 @@ export default async function Shell({ children }: { children: React.ReactNode })
               href={n.href}
               label={n.label}
               icon={<n.Icon size={18} />}
-              badge={n.href === "/dashboard" ? pending : 0}
+              badge={n.href === "/dashboard" ? pending : n.href === "/expenses" ? pendingExpenses : 0}
             />
           ))}
         </nav>
         <div className="px-5 py-4 border-t border-line">
           <div className="flex items-center gap-2 text-[11px]">
             <span className={`h-1.5 w-1.5 rounded-full ${isDemoMode ? "bg-warn" : "bg-profit"}`} />
-            <span className="text-muted">{isDemoMode ? "Demo mode" : "Live · Supabase"}</span>
+            <span className="text-muted">{isDemoMode ? "Demo mode" : tenantName}</span>
           </div>
           <div className="text-[11px] text-faint mt-1">Signed in as {actor}</div>
           <LogoutButton />
@@ -59,7 +77,7 @@ export default async function Shell({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Mobile nav: hamburger button + slide-in drawer */}
-      <MobileNav pending={pending} demoMode={isDemoMode} actor={actor} />
+      <MobileNav pending={pending} pendingExpenses={pendingExpenses} demoMode={isDemoMode} actor={actor} />
 
       {/* Main content — pad top on mobile to clear the fixed hamburger bar */}
       <main className="flex-1 min-w-0 flex flex-col">{children}</main>

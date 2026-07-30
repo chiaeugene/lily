@@ -25,6 +25,11 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
       <PageHeader
         title={`Transaction ${tx.id}`}
         sub={`${tx.customerName} · ${tx.date} · one order → three linked invoices`}
+        action={
+          <Link href={`/journey/${tx.id}`} className="text-[13px] font-medium text-primary hover:text-primary-hover hidden sm:inline">
+            View journey
+          </Link>
+        }
       />
       <div className="p-4 md:p-8 space-y-6 max-w-[1300px] w-full mx-auto">
         {voided && (

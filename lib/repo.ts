@@ -60,6 +60,7 @@ function rowToOrder(r: any): Order {
     parseConfidence: r.parse_confidence ?? undefined,
     parseNotes: r.parse_notes ?? undefined,
     createdAt: r.created_at,
+    quotationId: r.quotation_id ?? undefined,
   };
 }
 
@@ -136,6 +137,7 @@ function orderRow(o: Order) {
     parse_confidence: o.parseConfidence ?? null,
     parse_notes: o.parseNotes ?? null,
     created_at: o.createdAt,
+    quotation_id: o.quotationId ?? null,
   };
 }
 
@@ -601,6 +603,24 @@ export const repo = {
     return data ? rowToOrder(data) : undefined;
   },
 
+  // ── journey helpers (powers the order-journey trail view) ──────────────────
+  async findOrderByQuotationId(quotationId: string): Promise<Order | undefined> {
+    if (isDemoMode) return store.orders.find((o) => o.quotationId === quotationId);
+    const { data } = await getSupabaseAdmin().from("orders").select("*").eq("quotation_id", quotationId).maybeSingle();
+    return data ? rowToOrder(data) : undefined;
+  },
+
+  async findPoByQuotationId(quotationId: string): Promise<PurchaseOrder | undefined> {
+    const pos = await this.listPurchaseOrders();
+    return pos.find((p) => p.quotationId === quotationId);
+  },
+
+  async findTransactionByOrderId(orderId: string): Promise<Transaction | undefined> {
+    if (isDemoMode) return store.transactions.find((t) => t.orderId === orderId);
+    const { data } = await getSupabaseAdmin().from("transactions").select("*").eq("order_id", orderId).maybeSingle();
+    return data ? fetchTransactionWithInvoices(data) : undefined;
+  },
+
   // Accepting a quote spawns a fresh pending order (the normal cascade input)
   // and marks the quote "accepted" so it stays on record.
   async convertQuotationToOrder(id: string, actor = "admin"): Promise<string | undefined> {
@@ -623,6 +643,7 @@ export const repo = {
       parseConfidence: undefined,
       parseNotes: undefined,
       createdAt: new Date().toISOString(),
+      quotationId: id,
     };
 
     if (isDemoMode) {

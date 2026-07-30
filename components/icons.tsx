@@ -149,3 +149,16 @@ export const IconUsers = ({ className, size }: P) => (
     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
   </svg>
 );
+export const IconRoute = ({ className, size }: P) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="6" cy="19" r="3" />
+    <circle cx="18" cy="5" r="3" />
+    <path d="M9 19h8a4 4 0 0 0 4-4v-1a4 4 0 0 0-4-4H7a4 4 0 0 1-4-4V5" />
+  </svg>
+);
+export const IconReceipt = ({ className, size }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2Z" />
+    <path d="M8 7h8M8 11h8M8 15h5" />
+  </svg>
+);

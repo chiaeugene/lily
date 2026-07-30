@@ -14,25 +14,33 @@ import {
   IconQuote,
   IconBox,
   IconUsers,
+  IconReceipt,
+  IconRoute,
+  IconTrendUp,
 } from "@/components/icons";
 
 const NAV = [
   { href: "/dashboard",  label: "Dashboard",     Icon: IconDashboard },
   { href: "/quotation",  label: "Quotation",      Icon: IconQuote },
   { href: "/po",         label: "Purchase Orders", Icon: IconBox },
+  { href: "/journey",    label: "Order Journey",  Icon: IconRoute },
+  { href: "/expenses",   label: "Expenses",       Icon: IconReceipt },
   { href: "/payroll",    label: "Payroll",        Icon: IconUsers },
   { href: "/search",     label: "Search",         Icon: IconSearch },
   { href: "/analysis",   label: "Sales Analysis", Icon: IconChart },
+  { href: "/pnl",        label: "P&L",            Icon: IconTrendUp },
   { href: "/records",    label: "Records",        Icon: IconArchive },
   { href: "/settings",   label: "Settings",       Icon: IconSettings },
 ];
 
 export default function MobileNav({
   pending,
+  pendingExpenses,
   demoMode,
   actor,
 }: {
   pending: number;
+  pendingExpenses: number;
   demoMode: boolean;
   actor: string;
 }) {
@@ -102,7 +110,7 @@ export default function MobileNav({
               href={n.href}
               label={n.label}
               icon={<n.Icon size={18} />}
-              badge={n.href === "/dashboard" ? pending : 0}
+              badge={n.href === "/dashboard" ? pending : n.href === "/expenses" ? pendingExpenses : 0}
             />
           ))}
         </nav>

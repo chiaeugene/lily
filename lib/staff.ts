@@ -59,13 +59,7 @@ export async function setStaffActive(id: string, active: boolean): Promise<void>
   await getSupabaseAdmin().from("staff").update({ active }).eq("id", id);
 }
 
-// Reads + verifies the session cookie for the current request (server
-// components / route handlers only). Returns the signed-in staff member's
-// name, or "unknown" if the cookie is missing/invalid/stale.
-export async function getCurrentActor(): Promise<string> {
-  const raw = (await cookies()).get(AUTH_COOKIE)?.value;
-  const staffId = await verifySessionCookie(raw);
-  if (!staffId) return "unknown";
-  const staff = await getStaffById(staffId);
-  return staff?.name ?? "unknown";
-}
+// Auth moved to email+password users (lib/tenant.ts) when Lily became
+// multi-tenant. Re-exported here so existing audit-log call sites keep
+// working without touching 18 files.
+export { getCurrentActor } from "./currentUser";

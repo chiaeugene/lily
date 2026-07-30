@@ -22,9 +22,14 @@ export default async function QuotationViewPage({ params }: { params: Promise<{ 
         title={`Quotation ${quote.id}`}
         sub={`${quote.customerName} · RM ${fmt2(total)}`}
         action={
-          <Link href="/quotation" className="text-[13px] font-medium text-primary hover:text-primary-hover hidden sm:inline">
-            ← All quotations
-          </Link>
+          <div className="hidden sm:flex items-center gap-4">
+            <Link href={`/journey/${quote.id}`} className="text-[13px] font-medium text-primary hover:text-primary-hover">
+              View journey
+            </Link>
+            <Link href="/quotation" className="text-[13px] font-medium text-primary hover:text-primary-hover">
+              ← All quotations
+            </Link>
+          </div>
         }
       />
       <div className="p-4 md:p-8 space-y-4 max-w-[900px] w-full mx-auto">

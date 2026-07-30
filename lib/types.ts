@@ -98,6 +98,8 @@ export interface Order {
   parseConfidence?: number; // 0..1 from the AI parser
   parseNotes?: string;
   createdAt: string;
+  /** The quotation this order was converted/accepted from, if any (powers the journey view). */
+  quotationId?: string;
 }
 
 // ── Generated invoices ────────────────────────────────────────────────────────
@@ -239,4 +241,56 @@ export interface PayrollRun {
   month: string; // "2026-07"
   createdAt: string;
   payslips: Payslip[];
+}
+
+// ── Expenses & payment vouchers ──────────────────────────────────────────────
+// Captured (often via Telegram, text or a receipt photo), verified by staff,
+// then paid — only PAID expenses count as a P&L expense, matching how the
+// business actually recognizes cost.
+
+export const EXPENSE_CATEGORIES = [
+  "Raw Materials",
+  "Utilities",
+  "Rental",
+  "Transport & Logistics",
+  "Office Supplies",
+  "Repairs & Maintenance",
+  "Professional Fees",
+  "Marketing",
+  "Others",
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+export type ExpenseStatus = "pending_verification" | "verified" | "rejected";
+export type ExpensePaymentStatus = "unpaid" | "paid";
+
+export interface Expense {
+  id: string; // "EX-2607-001"
+  source: "telegram" | "manual";
+  rawMessage?: string;
+  documentDataUrl?: string; // receipt/photo, if one was sent
+  vendorName: string;
+  description: string;
+  category: string;
+  amount: number;
+  date: string; // dd/MM/yyyy
+  status: ExpenseStatus;
+  paymentStatus: ExpensePaymentStatus;
+  parseConfidence?: number; // 0..1 from the AI parser, telegram-sourced only
+  parseNotes?: string;
+  createdAt: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+}
+
+export interface PaymentVoucher {
+  id: string; // "PV-2607-001"
+  expenseId: string;
+  vendorName: string;
+  amount: number;
+  paidDate: string; // dd/MM/yyyy
+  method: string; // "Bank Transfer" | "Cash" | "Cheque" | "Online Banking"
+  reference?: string;
+  createdAt: string;
+  createdBy: string;
 }

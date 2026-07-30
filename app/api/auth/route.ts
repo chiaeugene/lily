@@ -1,19 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findStaffByPasscode } from "@/lib/staff";
+import { authenticate, ensureBootstrapAdmin } from "@/lib/tenant";
 import { signStaffId } from "@/lib/session";
 
 const COOKIE = "lily_auth";
 
-// POST { code } -> look up the staff member by their personal passcode,
-// verify, set a signed auth cookie carrying who they are.
+// POST { email, password } -> verify, set a signed session cookie carrying the user id.
 export async function POST(req: NextRequest) {
-  const { code } = await req.json().catch(() => ({ code: "" }));
-  const staff = await findStaffByPasscode(String(code ?? ""));
-  if (!staff) {
-    return NextResponse.json({ error: "Incorrect passcode" }, { status: 401 });
+  const { email, password } = await req.json().catch(() => ({ email: "", password: "" }));
+
+  // First run on a fresh database: create the platform admin from env vars.
+  // No-ops once any user exists.
+  const configured = await ensureBootstrapAdmin();
+
+  const user = await authenticate(String(email ?? ""), String(password ?? ""));
+  if (!user) {
+    return NextResponse.json(
+      {
+        error: configured
+          ? "Incorrect email or password"
+          : "No admin account exists yet — set LILY_ADMIN_EMAIL and LILY_ADMIN_PASSWORD, then try again.",
+      },
+      { status: 401 },
+    );
   }
-  const token = await signStaffId(staff.id);
-  const res = NextResponse.json({ ok: true, name: staff.name });
+
+  const token = await signStaffId(user.id);
+  const res = NextResponse.json({
+    ok: true,
+    name: user.name,
+    role: user.role,
+    mustChangePassword: user.mustChangePassword,
+  });
   res.cookies.set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -28,5 +45,6 @@ export async function POST(req: NextRequest) {
 export async function DELETE() {
   const res = NextResponse.json({ ok: true });
   res.cookies.set(COOKIE, "", { path: "/", maxAge: 0 });
+  res.cookies.set("lily_tenant", "", { path: "/", maxAge: 0 });
   return res;
 }

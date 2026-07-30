@@ -21,9 +21,14 @@ export default async function PurchaseOrderViewPage({ params }: { params: Promis
         title={`Purchase Order ${po.id}`}
         sub={`${po.supplierName} · RM ${fmt2(total)}`}
         action={
-          <Link href="/po" className="text-[13px] font-medium text-primary hover:text-primary-hover hidden sm:inline">
-            ← All purchase orders
-          </Link>
+          <div className="hidden sm:flex items-center gap-4">
+            <Link href={`/journey/${po.id}`} className="text-[13px] font-medium text-primary hover:text-primary-hover">
+              View journey
+            </Link>
+            <Link href="/po" className="text-[13px] font-medium text-primary hover:text-primary-hover">
+              ← All purchase orders
+            </Link>
+          </div>
         }
       />
       <div className="p-4 md:p-8 space-y-4 max-w-[900px] w-full mx-auto">

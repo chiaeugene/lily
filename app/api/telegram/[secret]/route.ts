@@ -249,11 +249,14 @@ async function handleUpdate(update: any) {
     order.parseNotes = `Low confidence — couldn't confidently match a product/quantity. ${order.parseNotes ?? ""}`.trim();
     await repo.addOrder(order);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    const dashUrl = appUrl ? `${appUrl}/dashboard` : undefined;
+    // Deep-link to the verification queue itself. This used to point at
+    // /dashboard, so tapping "Verify" from Telegram dropped you on the
+    // dashboard (or the login page) instead of the thing you came to review.
+    const dashUrl = appUrl ? `${appUrl}/pending` : undefined;
     await reply(
       chatId,
       `⚠️ I couldn't confidently read that as an order, but I saved it as a draft so nothing's lost — open the dashboard to fix it up, or send /order for the template.`,
-      dashUrl ? { text: "Review on dashboard", url: dashUrl } : undefined,
+      dashUrl ? { text: "Review it", url: dashUrl } : undefined,
     );
     return NextResponse.json({ ok: true });
   }
@@ -267,14 +270,17 @@ async function handleUpdate(update: any) {
 
   // Deep-link straight to the dashboard so verifying is one tap away.
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const dashUrl = appUrl ? `${appUrl}/dashboard` : undefined;
+  // Deep-link to the verification queue itself. This used to point at
+    // /dashboard, so tapping "Verify" from Telegram dropped you on the
+    // dashboard (or the login page) instead of the thing you came to review.
+    const dashUrl = appUrl ? `${appUrl}/pending` : undefined;
 
   await reply(
     chatId,
     `✅ Order queued (confidence ${conf}%)\n\nCustomer: ${order.customerName}\n${lines}\nTerms: ${order.terms}${
       order.parseNotes ? `\n\n⚠ ${order.parseNotes}` : ""
     }${dashUrl ? "" : "\n\nOpen the dashboard to verify & generate the 3 invoices."}`,
-    dashUrl ? { text: "✓ Verify & generate invoices", url: dashUrl } : undefined,
+    dashUrl ? { text: "✓ Review & verify", url: dashUrl } : undefined,
   );
   return NextResponse.json({ ok: true });
 }

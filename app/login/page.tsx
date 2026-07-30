@@ -44,7 +44,11 @@ export default function LoginPage() {
         setError(data?.error || "Couldn't sign you in — please try again.");
         return;
       }
-      const from = new URLSearchParams(window.location.search).get("from") || "/dashboard";
+      // Only ever return to a path on this site. Redirecting to a raw `from`
+      // value would let a crafted link (?from=https://evil.example) bounce a
+      // just-authenticated user off-site — a classic open redirect.
+      const raw = new URLSearchParams(window.location.search).get("from") || "";
+      const from = /^\/(?!\/)/.test(raw) ? raw : "/dashboard";
       router.replace(from);
       router.refresh();
     } catch {

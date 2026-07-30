@@ -35,8 +35,27 @@ export async function GET(_req: NextRequest) {
   const data = (await res.json()) as { ok: boolean; description?: string };
 
   if (data.ok) {
+    // Report who the bot actually is, so you don't have to go hunting in
+    // BotFather for the handle your staff need to search for.
+    const me = (await fetch(`https://api.telegram.org/bot${token}/getMe`)
+      .then((r) => r.json())
+      .catch(() => null)) as { result?: { username?: string; first_name?: string } } | null;
+    const handle = me?.result?.username;
+    const whoAmI = handle
+      ? `Your bot is <b>@${handle}</b> — <a href="https://t.me/${handle}">https://t.me/${handle}</a>`
+      : "Couldn't read the bot's username from Telegram.";
+    const envHint = handle
+      ? `<br><br>Set <code>TELEGRAM_BOT_USERNAME=${handle}</code> in Render so onboarding messages include a tap-to-open link.`
+      : "";
+
     return new NextResponse(
-      html("Webhook registered", `Telegram will now send messages to:<br><code>${webhookUrl}</code><br><br>Send your bot any message to place an order.`, true),
+      html(
+        "Webhook registered",
+        `Telegram will now send messages to:<br><code>${webhookUrl}</code><br><br>${whoAmI}${envHint}` +
+          `<br><br><b>Next:</b> open Settings → Users → “Connect Telegram” on your own account, then send the bot <code>/start YOUR_CODE</code>. ` +
+          `The bot only accepts messages from linked accounts.`,
+        true,
+      ),
       { headers: { "content-type": "text/html" } },
     );
   } else {

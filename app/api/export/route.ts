@@ -3,7 +3,8 @@ import { repo } from "@/lib/repo";
 import { invoiceHtml } from "@/lib/invoiceHtml";
 import { bundleHtml, renderPdf, withAutoPrint } from "@/lib/pdf";
 import { fmt2 } from "@/lib/money";
-import { COMPANIES, ensureCompaniesHydrated } from "@/lib/companies";
+import { ensureCompaniesHydrated } from "@/lib/companies";
+import { getTenantCompanyLookup } from "@/lib/tenantCompanies";
 import type { CompanyKey } from "@/lib/types";
 
 function parseDDMMYYYY(s: string): Date | null {
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
   const format = formatParam === "pdf" || formatParam === "autocount" || formatParam === "sql" ? formatParam : "csv";
 
   let txs = await repo.allTransactions();
+  const companyLookup = await getTenantCompanyLookup();
 
   txs = txs.filter((t) => {
     if (!includeVoid && t.status === "void") return false;
@@ -51,7 +53,7 @@ export async function GET(req: NextRequest) {
         headers: { "content-type": "text/plain" },
       });
     }
-    const docs = rows.map(({ tx, inv }) => invoiceHtml(inv, { voided: tx.status === "void" }));
+    const docs = rows.map(({ tx, inv }) => invoiceHtml(inv, { voided: tx.status === "void", company: companyLookup[inv.company] }));
     const html = bundleHtml(docs);
     const pdf = await renderPdf(html);
     if (pdf) {
@@ -117,7 +119,7 @@ export async function GET(req: NextRequest) {
       [
         tx.date,
         tx.id,
-        COMPANIES[inv.company].name,
+        companyLookup[inv.company]?.name ?? inv.company,
         inv.invoiceNo,
         inv.toName,
         fmt2(inv.subtotal),

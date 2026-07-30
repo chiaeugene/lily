@@ -34,6 +34,10 @@ export default function SettingsClient({
 }) {
   const [rules, setRules] = useState(initialRules);
   const origin = companies[0];
+  // Positional margins only exist when there's a chain to back-calculate.
+  // A single-entity tenant was being shown the Tien Ngai group's cascade
+  // pricing panel — config that could never apply to them.
+  const cascade = companies.length > 1;
 
   // Margins are POSITIONAL — layer 1 = customer-facing, layer 2 = inner/middle.
   // Whichever company sits in that slot for a given transaction uses that rate.
@@ -63,7 +67,7 @@ export default function SettingsClient({
 
   return (
     <div className="space-y-6">
-      <Card title="Pricing & margins">
+      {cascade && <Card title="Pricing & margins">
         <p className="text-[13px] text-muted -mt-1 mb-4">
           Margins are <strong>positional</strong> — they belong to the layer, not any specific company.
           You enter only the customer sell price; Lily back-calculates every upstream price using these layers.
@@ -92,9 +96,9 @@ export default function SettingsClient({
         </div>
 
         <CascadePreview companies={companies} products={products} getRule={rule} />
-      </Card>
+      </Card>}
 
-      <div className="grid lg:grid-cols-3 gap-5">
+      <div className={`grid gap-5 ${companies.length >= 3 ? "lg:grid-cols-3" : companies.length === 2 ? "lg:grid-cols-2" : ""}`}>
         {companies.map((c) => (
           <CompanyEditor key={c.key} company={c} />
         ))}

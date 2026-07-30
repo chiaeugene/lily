@@ -3,6 +3,7 @@ import { repo } from "@/lib/repo";
 import { invoiceHtml } from "@/lib/invoiceHtml";
 import { renderPdf, withAutoPrint } from "@/lib/pdf";
 import { ensureCompaniesHydrated } from "@/lib/companies";
+import { getTenantCompanyLookup } from "@/lib/tenantCompanies";
 
 // Returns a real PDF (application/pdf) when Chromium is available (Render/Linux),
 // or falls back to HTML+autoprint on Windows dev.
@@ -14,7 +15,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const found = await repo.getInvoice(id);
   if (!found) return NextResponse.json({ error: "invoice not found" }, { status: 404 });
 
-  const html = invoiceHtml(found.invoice, { voided: found.transaction.status === "void" });
+  const lookup = await getTenantCompanyLookup();
+  const html = invoiceHtml(found.invoice, {
+    voided: found.transaction.status === "void",
+    company: lookup[found.invoice.company],
+  });
   const pdfBuffer = await renderPdf(html);
 
   if (pdfBuffer) {

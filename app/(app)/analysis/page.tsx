@@ -58,8 +58,12 @@ export default async function AnalysisPage() {
     tierMargin.prim += pr - tn;
     tierMargin["3c"] += c3 - pr;
 
-    const tnInv = t.invoices.find((i) => i.company === "tien_ngai");
-    tnInv?.lines.forEach((l) => {
+    // Product volumes come from the ORIGIN invoice — the same goods appear on
+    // every tier, so counting one tier avoids triple-counting. This used to
+    // look up "tien_ngai" by name, which left the chart permanently empty for
+    // any other tenant; the first invoice is the origin for everyone.
+    const originInv = t.invoices.find((i) => i.company === "tien_ngai") ?? t.invoices[0];
+    originInv?.lines.forEach((l) => {
       const p = byProduct.get(l.description) ?? { qty: 0, sell: 0 };
       p.qty += l.qty;
       p.sell += l.total;
@@ -76,17 +80,25 @@ export default async function AnalysisPage() {
 
   return (
     <>
-      <PageHeader title="Sales Analysis" sub="Volume, revenue and the margin earned at each tier" />
+      <PageHeader
+        title="Sales Analysis"
+        sub={cascade ? "Volume, revenue and the margin earned at each tier" : "Volume, revenue and who owes you"}
+      />
       <div className="p-4 md:p-8 space-y-6 max-w-[1200px] w-full mx-auto">
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className={`grid grid-cols-2 gap-4 ${cascade ? "lg:grid-cols-5" : "lg:grid-cols-3"}`}>
           <KpiCard label="Transactions" value={String(txs.length)} tone="primary" />
           <KpiCard label="Total sales" value={totalSell} prefix="RM " />
-          <KpiCard label="Group margin" value={totalMargin} prefix="RM " tone="profit" />
-          <KpiCard
-            label="Avg margin %"
-            value={totalSell ? `${((totalMargin / totalSell) * 100).toFixed(1)}%` : "—"}
-            tone="profit"
-          />
+          {/* Group margin is the spread between cascade tiers — a
+              single-company tenant has no spread, so the cards read RM 0
+              and 0.0% forever. Hide what can't apply. */}
+          {cascade && <KpiCard label="Group margin" value={totalMargin} prefix="RM " tone="profit" />}
+          {cascade && (
+            <KpiCard
+              label="Avg margin %"
+              value={totalSell ? `${((totalMargin / totalSell) * 100).toFixed(1)}%` : "—"}
+              tone="profit"
+            />
+          )}
           <KpiCard label="Outstanding" value={totalOutstanding} prefix="RM " tone={totalOutstanding ? "loss" : "ink"} />
         </div>
 
@@ -117,7 +129,7 @@ export default async function AnalysisPage() {
           )}
           <div className="flex items-center gap-4 mt-3 text-[12px] text-muted">
             <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Sales</span>
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-profit" /> Group margin</span>
+            {cascade && <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-profit" /> Group margin</span>}
           </div>
         </Card>
 
@@ -195,7 +207,7 @@ export default async function AnalysisPage() {
                 <th className="font-normal py-2">Customer</th>
                 <th className="font-normal py-2 text-right">Orders</th>
                 <th className="font-normal py-2 text-right">Sales (RM)</th>
-                <th className="font-normal py-2 text-right">Margin (RM)</th>
+                {cascade && <th className="font-normal py-2 text-right">Margin (RM)</th>}
                 <th className="font-normal py-2 text-right">Outstanding (RM)</th>
               </tr>
             </thead>
@@ -205,13 +217,13 @@ export default async function AnalysisPage() {
                   <td className="py-2">{name}</td>
                   <td className="text-right tnum">{c.count}</td>
                   <td className="text-right tnum">{fmt2(c.sell)}</td>
-                  <td className="text-right tnum text-profit">{fmt2(c.margin)}</td>
+                  {cascade && <td className="text-right tnum text-profit">{fmt2(c.margin)}</td>}
                   <td className={`text-right tnum ${c.outstanding > 0 ? "text-loss" : "text-faint"}`}>{fmt2(c.outstanding)}</td>
                 </tr>
               ))}
               {byCustomer.size === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center text-slate-400 py-4">No data yet.</td>
+                  <td colSpan={cascade ? 5 : 4} className="text-center text-slate-400 py-4">No data yet.</td>
                 </tr>
               )}
             </tbody>

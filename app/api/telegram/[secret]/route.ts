@@ -160,7 +160,7 @@ async function handleUpdate(update: any) {
         "I'll figure out on my own whether it's a customer order, a quotation, a purchase order, or an expense/receipt — " +
         "including from a photo of a receipt or document, no prefix needed. You can still start with " +
         "\"quote\", \"po\", or \"expense\" to force it.\n\n" +
-        "/order — get a fill-in template\n/id — show your Telegram ID\n\nAfter sending, open the dashboard to verify & generate the 3 invoices.",
+        "/order — get a fill-in template\n/id — show your Telegram ID\n\nAfter sending, open the dashboard to verify & invoice.",
     );
     return NextResponse.json({ ok: true });
   }
@@ -279,7 +279,7 @@ async function handleUpdate(update: any) {
     chatId,
     `✅ Order queued (confidence ${conf}%)\n\nCustomer: ${order.customerName}\n${lines}\nTerms: ${order.terms}${
       order.parseNotes ? `\n\n⚠ ${order.parseNotes}` : ""
-    }${dashUrl ? "" : "\n\nOpen the dashboard to verify & generate the 3 invoices."}`,
+    }${dashUrl ? "" : "\n\nOpen the dashboard to verify & invoice."}`,
     dashUrl ? { text: "✓ Review & verify", url: dashUrl } : undefined,
   );
   return NextResponse.json({ ok: true });

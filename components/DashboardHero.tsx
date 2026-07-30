@@ -43,19 +43,27 @@ const GREETINGS = [
 export default function DashboardHero({
   pending,
   marginThisMonth,
+  salesThisMonth,
+  cascade,
   tenantName,
 }: {
   pending: number;
   marginThisMonth: number;
+  salesThisMonth: number;
+  /** Margin talk only makes sense for a cascade group — everyone else hears revenue. */
+  cascade: boolean;
   tenantName: string;
 }) {
   // Server component, so this runs once per request — no hydration mismatch,
   // and you get a different line each time you land on the dashboard.
   const greetingText = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+  const moneyLine = cascade
+    ? `RM ${fmt2(marginThisMonth)} in margin captured this month`
+    : `RM ${fmt2(salesThisMonth)} invoiced this month`;
   const sub =
     pending > 0
-      ? `${pending} order${pending > 1 ? "s" : ""} ${pending > 1 ? "are" : "is"} waiting on your review, and you've captured RM ${fmt2(marginThisMonth)} in margin this month.`
-      : `Nothing waiting on you right now — RM ${fmt2(marginThisMonth)} in margin captured this month.`;
+      ? `${pending} order${pending > 1 ? "s" : ""} ${pending > 1 ? "are" : "is"} waiting on your review, and ${moneyLine}.`
+      : `Nothing waiting on you right now — ${moneyLine}.`;
 
   return (
     <div className="relative rounded-2xl border border-line overflow-hidden p-7 sm:p-9 isolate">

@@ -9,10 +9,11 @@ import ReminderButton from "@/components/ReminderButton";
 import { fmt2 } from "@/lib/money";
 import { dueDate, paymentState, daysOverdue } from "@/lib/payment";
 import { COMPANY_LABELS } from "@/lib/companies";
+import { getSession } from "@/lib/currentUser";
 
 export default async function TransactionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const tx = await repo.getTransaction(id);
+  const [tx, session] = await Promise.all([repo.getTransaction(id), getSession()]);
   if (!tx) notFound();
 
   const voided = tx.status === "void";
@@ -47,10 +48,14 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
             <div className="text-xs text-slate-400">{tx.invoices.length > 1 ? "Customer pays (3C)" : "Customer pays"}</div>
             <div className={`text-lg font-bold tnum ${voided ? "line-through text-muted" : ""}`}>RM {fmt2(tx.grandTotalSell)}</div>
           </div>
-          <div>
-            <div className="text-xs text-slate-400">Group margin captured</div>
-            <div className={`text-lg font-bold tnum ${voided ? "line-through text-muted" : "text-profit"}`}>RM {fmt2(tx.marginCaptured)}</div>
-          </div>
+          {/* Group margin only exists when there IS a group — a single-company
+              tenant has no internal spread to show. */}
+          {tx.invoices.length > 1 && (
+            <div>
+              <div className="text-xs text-slate-400">Group margin captured</div>
+              <div className={`text-lg font-bold tnum ${voided ? "line-through text-muted" : "text-profit"}`}>RM {fmt2(tx.marginCaptured)}</div>
+            </div>
+          )}
           {!voided && (
             <div>
               <div className="text-xs text-slate-400">Payment</div>
@@ -70,6 +75,7 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
                 amount={fmt2(tx.grandTotalSell)}
                 dueDateStr={due?.toLocaleDateString("en-MY")}
                 daysOverdue={daysOverdue(tx)}
+                businessName={session?.tenant.name ?? "us"}
               />
             )}
             {!voided && <VoidButton transactionId={tx.id} />}

@@ -89,7 +89,13 @@ export function ensureCompaniesHydrated(): Promise<void> {
     g.__lilyCompaniesHydrating = (async () => {
       try {
         const { getSupabaseAdmin } = await import("./supabase");
-        const { data } = await getSupabaseAdmin().from("companies").select("*");
+        // These three skins belong to the Tien Ngai tenant ONLY. Without the
+        // filter, any tenant that happened to name a company "prim"/"3c"/
+        // "tien_ngai" would overwrite the group's letterhead for everyone.
+        const { data } = await getSupabaseAdmin()
+          .from("companies")
+          .select("*")
+          .eq("tenant_id", "tien-ngai");
         for (const row of data ?? []) {
           const key = row.key as CompanyKey;
           const c = COMPANIES[key] as unknown as Record<string, unknown> | undefined;

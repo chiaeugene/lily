@@ -225,11 +225,16 @@ export const repo = {
     const allowed: (keyof Company)[] = [
       "name", "regNo", "tinNo", "formerlyKnownAs", "addressLines", "tel", "email", "banks", "paymentQrDataUrl",
     ];
-    // always update the in-memory object so the current session reflects it
-    const target = COMPANIES[key] as unknown as Record<string, unknown>;
+    // Update the in-memory object so the current session reflects it — but
+    // only for the static Tien Ngai skins. Other tenants' companies live
+    // solely in their DB rows (COMPANIES[key] is undefined for them, and
+    // writing into it used to crash the whole save).
+    const target = COMPANIES[key] as unknown as Record<string, unknown> | undefined;
     const src = patch as Record<string, unknown>;
-    for (const k of allowed) {
-      if (k in patch && src[k] !== undefined) target[k] = src[k];
+    if (target) {
+      for (const k of allowed) {
+        if (k in patch && src[k] !== undefined) target[k] = src[k];
+      }
     }
     if (!isDemoMode) {
       // persist to Supabase companies table (snake_case columns)
@@ -431,7 +436,11 @@ export const repo = {
       tenantCompanies.map((c) => [c.key, c]),
     );
     const defaultCompanies = cascade ? CHAIN : [tenantCompanies[0].key];
-    const toGenerate = companies && companies.length > 0 ? companies : defaultCompanies;
+    // Explicitly requested companies are honoured only if this tenant actually
+    // owns them — a stray "tien_ngai" from a stale client can't put another
+    // business's letterhead on this tenant's invoice.
+    const requested = companies?.filter((c) => companyLookup[c]);
+    const toGenerate = requested && requested.length > 0 ? requested : defaultCompanies;
 
     if (isDemoMode) {
       const order = store.orders.find((o) => o.id === orderId);
@@ -489,9 +498,25 @@ export const repo = {
         .from("invoice_counters")
         .select("seq")
         .eq("company", co)
-        .single();
-      const newSeq = (cRow?.seq ?? 0) + 1;
-      await db.from("invoice_counters").update({ seq: newSeq }).eq("company", co);
+        .maybeSingle();
+      // No counter row yet? Seed from invoices already issued under this key,
+      // so a tenant that got duplicate 0001s before the counter existed
+      // resumes at the right number instead of colliding again.
+      let base = cRow?.seq ?? 0;
+      if (!cRow) {
+        const { count } = await db
+          .from("invoices")
+          .select("id", { count: "exact", head: true })
+          .eq("company", co);
+        base = count ?? 0;
+      }
+      const newSeq = base + 1;
+      // Upsert, not update: a new tenant has no counter row yet, and updating a
+      // missing row silently does nothing — every invoice would be numbered 001.
+      const { error: counterError } = await db
+        .from("invoice_counters")
+        .upsert({ company: co, seq: newSeq }, { onConflict: "tenant_id,company" });
+      if (counterError) throw new Error(`invoice counter for ${co}: ${counterError.message}`);
       counterMap[co] = newSeq;
     }
 

@@ -30,7 +30,26 @@ export function invoiceHtml(
     company?: Company;
   } = {},
 ): string {
-  const c = opts.company ?? COMPANIES[inv.company];
+  // Last-resort fallback: an invoice whose company key isn't in the static
+  // Tien Ngai map (any other tenant's entity) must still render — a bare
+  // letterhead beats a 500 on someone's real invoice.
+  const c: Company = opts.company ??
+    COMPANIES[inv.company] ?? {
+      key: inv.company,
+      name: String(inv.company).replace(/[_-]+/g, " ").toUpperCase(),
+      regNo: "",
+      addressLines: [],
+      tel: "",
+      email: "",
+      banks: [],
+      invoiceFormat: "ym",
+      invoicePrefix: "INV-",
+      showLogo: false,
+      showQr: false,
+      showLhdnLink: false,
+      showRoundingRow: false,
+      showAuthorisedSignature: true,
+    };
   const label = opts.docLabel ?? "INVOICE";
   const isQuote = label === "QUOTATION";
   const isPo = label === "PURCHASE ORDER";

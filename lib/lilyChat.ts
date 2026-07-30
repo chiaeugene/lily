@@ -7,9 +7,17 @@ import { daysOverdue, paymentState } from "./payment";
 
 const MODEL = process.env.LILY_CHAT_MODEL || "claude-sonnet-5";
 
-const SYSTEM = `You are Lily, the AI assistant inside a back-office tool for Tien Ngai Machinery,
-a Malaysian paper/machinery trading business that invoices through a 3-tier company cascade
-(Tien Ngai Machinery -> Prim Paper Trading -> 3C Industries -> customer).
+// The chat serves every tenant, so the identity line is built per request —
+// it used to introduce itself to everyone as Tien Ngai's assistant, cascade
+// and all.
+const systemPrompt = (businessName: string, cascade: boolean) =>
+  `You are Lily, the AI assistant inside a back-office tool for ${businessName},
+a Malaysian SME.${
+    cascade
+      ? `\nThis business invoices through a 3-tier company cascade
+(Tien Ngai Machinery -> Prim Paper Trading -> 3C Industries -> customer).`
+      : ""
+  }
 
 Answer questions about orders, transactions, customers, and sales using the tools provided —
 always call a tool to check real data before answering; never guess or make up numbers.
@@ -107,7 +115,10 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<un
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
-export async function askLily(history: ChatMessage[]): Promise<string> {
+export async function askLily(
+  history: ChatMessage[],
+  ctx: { businessName: string; cascade: boolean },
+): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return "I'm not connected to an AI backend yet — no ANTHROPIC_API_KEY is set.";
 
@@ -125,7 +136,7 @@ export async function askLily(history: ChatMessage[]): Promise<string> {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 1024,
-        system: SYSTEM,
+        system: systemPrompt(ctx.businessName, ctx.cascade),
         tools: TOOLS,
         messages,
       }),

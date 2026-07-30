@@ -2,16 +2,18 @@
 
 import { useState } from "react";
 import { IconDownload } from "@/components/icons";
-import { COMPANY_LABELS } from "@/lib/companies";
 
-const COMPANY_OPTS = [
-  { value: "all", label: "All companies" },
-  { value: "tien_ngai", label: COMPANY_LABELS.tien_ngai },
-  { value: "prim", label: COMPANY_LABELS.prim },
-  { value: "3c", label: COMPANY_LABELS["3c"] },
-];
-
-export default function ExportBar() {
+/**
+ * `companies` comes from the server (the current tenant's own entities) —
+ * this used to be a hardcoded Tien Ngai / Prim / 3C list, which offered every
+ * tenant a filter over three companies that weren't theirs. A single-entity
+ * tenant doesn't get a company filter at all: there's nothing to filter.
+ */
+export default function ExportBar({
+  companies = [],
+}: {
+  companies?: { value: string; label: string }[];
+}) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [company, setCompany] = useState("all");
@@ -39,12 +41,15 @@ export default function ExportBar() {
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
           className="border border-line rounded-lg px-2.5 py-1.5 text-[13px] tnum focus:border-primary" />
       </Labeled>
-      <Labeled label="Company">
-        <select value={company} onChange={(e) => setCompany(e.target.value)}
-          className="border border-line rounded-lg px-2.5 py-1.5 text-[13px] bg-surface focus:border-primary">
-          {COMPANY_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </Labeled>
+      {companies.length > 1 && (
+        <Labeled label="Company">
+          <select value={company} onChange={(e) => setCompany(e.target.value)}
+            className="border border-line rounded-lg px-2.5 py-1.5 text-[13px] bg-surface focus:border-primary">
+            <option value="all">All companies</option>
+            {companies.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </Labeled>
+      )}
       <Labeled label="Customer">
         <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="any"
           className="border border-line rounded-lg px-2.5 py-1.5 text-[13px] focus:border-primary w-36" />

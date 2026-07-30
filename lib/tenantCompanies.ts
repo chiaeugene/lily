@@ -80,6 +80,25 @@ export async function getTenantCompanies(explicitTenantId?: string): Promise<Com
 }
 
 /**
+ * Company-key → Company for the current tenant, for rendering stored invoices.
+ * A stored invoice only carries its issuer's KEY ("primary", "prim", …); every
+ * renderer needs this map to recover the letterhead. Missing keys fall back to
+ * the synthesised entity so an old document can never 500 the page.
+ */
+export async function getTenantCompanyLookup(
+  explicitTenantId?: string,
+): Promise<Record<string, Company>> {
+  const tenantId = await scopeTenant(explicitTenantId);
+  const companies = await getTenantCompanies(tenantId);
+  const lookup: Record<string, Company> = Object.fromEntries(companies.map((c) => [c.key, c]));
+  if (!lookup.primary) {
+    const tenant = await getTenant(tenantId).catch(() => undefined);
+    lookup.primary = synthesise(tenantId, tenant?.name ?? tenantId);
+  }
+  return lookup;
+}
+
+/**
  * The entity that issues a given document type.
  *
  * Cascade tenants (Tien Ngai) keep their convention: the customer-facing

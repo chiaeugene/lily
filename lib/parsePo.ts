@@ -16,7 +16,7 @@ export interface ParsedPoDraft {
 }
 
 const SYSTEM = `You convert a free-form message requesting a purchase order (Telegram message, English or Malay) into strict JSON.
-The buyer (Tien Ngai Machinery) is ordering raw materials or services from an external supplier — e.g. ink, coating, paper reels, or similar.
+The buyer (the business using this tool) is ordering raw materials or services from an external supplier — e.g. ink, coating, paper reels, or similar.
 Return ONLY JSON of shape:
 {"supplierName": string, "terms": string, "deliveryDate": string, "lines":[{"description": string, "uom": string, "qty": number, "unitPrice": number}], "confidence": number (0..1), "notes": string}
 Rules:

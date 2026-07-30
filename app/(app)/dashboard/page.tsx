@@ -7,6 +7,7 @@ import { PageHeader, KpiCard, Card } from "@/components/ui";
 import DashboardHero from "@/components/DashboardHero";
 import TransactionsList from "@/components/TransactionsList";
 import { paymentState, daysOverdue } from "@/lib/payment";
+import { isDirectCost } from "@/lib/types";
 import { fmt2 } from "@/lib/money";
 import {
   IconArrowRight,
@@ -51,10 +52,18 @@ export default async function Dashboard() {
     (s, p) => s + p.basicSalary + p.allowances + p.epfEmployer + p.socsoEmployer + p.eisEmployer,
     0,
   );
-  const paidExpenseTotal = expenses
-    .filter((e) => e.status === "verified" && e.paymentStatus === "paid")
-    .reduce((s, e) => s + e.amount, 0);
-  const netProfit = k.marginCaptured - payrollCost - paidExpenseTotal;
+  const paidExpensesArr = expenses.filter((e) => e.status === "verified" && e.paymentStatus === "paid");
+  const paidExpenseTotal = paidExpensesArr.reduce((s, e) => s + e.amount, 0);
+
+  // Same rule as the P&L page: a cascade tenant's gross profit is the spread
+  // between its tiers; a single-company tenant's is revenue minus the direct
+  // costs it actually paid. Basing this on marginCaptured for everyone made a
+  // healthy single-company business look deeply loss-making here while the
+  // P&L page said otherwise.
+  const cascade = active.some((t) => t.invoices.length > 1);
+  const directPaid = paidExpensesArr.filter((e) => isDirectCost(e.category)).reduce((s, e) => s + e.amount, 0);
+  const grossProfit = cascade ? k.marginCaptured : k.totalSell - directPaid;
+  const netProfit = (cascade ? k.marginCaptured : k.totalSell) - payrollCost - paidExpenseTotal;
 
   const salesDeltaPct =
     k.salesLastMonth > 0 ? ((k.salesThisMonth - k.salesLastMonth) / k.salesLastMonth) * 100 : undefined;
@@ -63,7 +72,13 @@ export default async function Dashboard() {
     <>
       <PageHeader title="Dashboard" sub={session?.tenant.name} />
       <div className="p-4 md:p-8 space-y-6 max-w-[1200px] w-full mx-auto">
-        <DashboardHero pending={k.pending} marginThisMonth={k.marginThisMonth} tenantName={session?.tenant.name ?? ""} />
+        <DashboardHero
+          pending={k.pending}
+          marginThisMonth={k.marginThisMonth}
+          salesThisMonth={k.salesThisMonth}
+          cascade={cascade}
+          tenantName={session?.tenant.name ?? ""}
+        />
 
         {/* Quick actions sit directly under the hero so they're reachable
             without scrolling — starting work is the most common intent. */}
@@ -128,13 +143,13 @@ export default async function Dashboard() {
               href="/analysis"
             />
             <KpiCard
-              label="Gross margin"
-              value={k.marginCaptured}
+              label={cascade ? "Gross margin" : "Gross profit"}
+              value={grossProfit}
               prefix="RM "
-              tone="profit"
-              hint="captured across tiers"
+              tone={grossProfit >= 0 ? "profit" : "loss"}
+              hint={cascade ? "captured across tiers" : "revenue − direct costs"}
               icon={<IconTrendUp size={15} />}
-              href="/analysis"
+              href={cascade ? "/analysis" : "/pnl"}
             />
             <KpiCard
               label="Money out"

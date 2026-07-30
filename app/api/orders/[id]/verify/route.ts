@@ -56,6 +56,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!edit) return l;
       return {
         ...l,
+        // The verify card lets staff correct the parsed product name too —
+        // dropping it here made those edits silently vanish on the invoice.
+        productName:
+          typeof edit.productName === "string" && edit.productName.trim()
+            ? edit.productName.trim()
+            : l.productName,
         qty: Number.isFinite(edit.qty) ? Number(edit.qty) : l.qty,
         sellUnitPrice: Number.isFinite(edit.sellUnitPrice) ? Number(edit.sellUnitPrice) : l.sellUnitPrice,
       };

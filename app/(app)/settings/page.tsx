@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { repo } from "@/lib/repo";
+import { getTenantCompanies } from "@/lib/tenantCompanies";
 import { listUsers } from "@/lib/tenant";
 import { getSession } from "@/lib/currentUser";
 import { listEmployees } from "@/lib/payroll";
@@ -13,8 +14,10 @@ export default async function SettingsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
+  // The tenant's OWN companies — repo.listCompanies() returns the static Tien
+  // Ngai trio and was showing every tenant three businesses that aren't theirs.
   const [companies, products, rules, customers, users, employees] = await Promise.all([
-    repo.listCompanies(),
+    getTenantCompanies(),
     repo.listProducts(),
     repo.listMarginRules(),
     repo.listCustomers(),
@@ -24,7 +27,14 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" sub="Customers, products, company details and the margins that drive the cascade" />
+      <PageHeader
+        title="Settings"
+        sub={
+          companies.length > 1
+            ? "Customers, products, company details and the margins that drive the cascade"
+            : "Customers, products, staff and your company details"
+        }
+      />
       <div className="p-4 md:p-8 max-w-[1200px] w-full mx-auto space-y-6">
         <UsersClient users={users} currentUserId={session.user.id} />
         <EmployeesClient employees={employees} />

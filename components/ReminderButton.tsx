@@ -17,6 +17,7 @@ export default function ReminderButton({
   amount,
   dueDateStr,
   daysOverdue,
+  businessName,
 }: {
   tel?: string;
   customerName: string;
@@ -24,13 +25,15 @@ export default function ReminderButton({
   amount: string;
   dueDateStr?: string;
   daysOverdue: number;
+  /** The tenant's own name — the reminder used to sign off as Tien Ngai for everyone. */
+  businessName: string;
 }) {
   const number = tel ? toWhatsAppNumber(tel) : null;
 
   function send() {
     const overdueLine = daysOverdue > 0 ? ` It is currently ${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue.` : "";
     const message =
-      `Hi ${customerName}, this is a friendly reminder from Tien Ngai Machinery that invoice ${invoiceNo} ` +
+      `Hi ${customerName}, this is a friendly reminder from ${businessName} that invoice ${invoiceNo} ` +
       `for RM${amount}${dueDateStr ? ` (due ${dueDateStr})` : ""} is still outstanding.${overdueLine} ` +
       `Kindly arrange payment at your earliest convenience. Thank you!`;
     const url = number

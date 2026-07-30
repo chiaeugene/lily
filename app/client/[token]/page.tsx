@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
 import { repo } from "@/lib/repo";
+import { findPortalCustomer } from "@/lib/portal";
+import { runWithTenant } from "@/lib/tenantScope";
+import { getTenant } from "@/lib/tenant";
 import { paymentState, daysOverdue } from "@/lib/payment";
 import { fmt2 } from "@/lib/money";
 import { LilyMark } from "@/components/Logo";
@@ -14,10 +17,15 @@ const STATUS_CLS: Record<string, string> = {
 
 export default async function ClientPortalPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const customer = await repo.getCustomerByPortalToken(token);
-  if (!customer) notFound();
+  // Public page: no session, so the token resolves the tenant itself.
+  const found = await findPortalCustomer(token);
+  if (!found) notFound();
+  const { customer, tenantId } = found;
 
-  const allTx = await repo.search(customer.name);
+  const [allTx, tenant] = await runWithTenant(tenantId, () =>
+    Promise.all([repo.search(customer.name), getTenant(tenantId)]),
+  );
+  const businessName = tenant?.name ?? "your supplier";
   const txs = allTx
     .filter((t) => t.customerName === customer.name && t.status !== "void")
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -33,7 +41,7 @@ export default async function ClientPortalPage({ params }: { params: Promise<{ t
           </div>
           <div>
             <div className="text-[13px] text-muted">Your account with</div>
-            <div className="text-[16px] font-semibold text-ink">Tien Ngai Machinery Group</div>
+            <div className="text-[16px] font-semibold text-ink">{businessName}</div>
           </div>
         </div>
       </header>

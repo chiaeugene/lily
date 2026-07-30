@@ -3,6 +3,9 @@ import { repo } from "@/lib/repo";
 import { invoiceHtml } from "@/lib/invoiceHtml";
 import { renderPdf, withAutoPrint } from "@/lib/pdf";
 import { ensureCompaniesHydrated } from "@/lib/companies";
+import { findPortalCustomer } from "@/lib/portal";
+import { runWithTenant } from "@/lib/tenantScope";
+import { getTenantCompanyLookup } from "@/lib/tenantCompanies";
 
 // Public, but scoped: only serves an invoice if it actually belongs to the
 // customer that owns this portal token — a stranger can't fetch someone
@@ -13,15 +16,22 @@ export async function GET(
 ) {
   await ensureCompaniesHydrated();
   const { token, invoiceId } = await params;
-  const customer = await repo.getCustomerByPortalToken(token);
-  if (!customer) return NextResponse.json({ error: "not found" }, { status: 404 });
+  // Public route: no session, so the token resolves the tenant itself.
+  const portal = await findPortalCustomer(token);
+  if (!portal) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const { customer, tenantId } = portal;
 
-  const found = await repo.getInvoice(invoiceId);
+  const [found, lookup] = await runWithTenant(tenantId, () =>
+    Promise.all([repo.getInvoice(invoiceId), getTenantCompanyLookup()]),
+  );
   if (!found || found.transaction.customerName !== customer.name) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const html = invoiceHtml(found.invoice, { voided: found.transaction.status === "void" });
+  const html = invoiceHtml(found.invoice, {
+    voided: found.transaction.status === "void",
+    company: lookup[found.invoice.company],
+  });
   const pdfBuffer = await renderPdf(html);
   if (pdfBuffer) {
     return new NextResponse(new Uint8Array(pdfBuffer), {

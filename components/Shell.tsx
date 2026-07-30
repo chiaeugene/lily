@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { repo, isDemoMode } from "@/lib/repo";
 import { getSession } from "@/lib/currentUser";
+import { listTenants } from "@/lib/tenant";
 import { listExpenses } from "@/lib/expenses";
+import TenantSwitcher from "@/components/TenantSwitcher";
 import { LilyLogo } from "@/components/Logo";
 import NavItem from "@/components/NavItem";
 import LogoutButton from "@/components/LogoutButton";
@@ -50,6 +52,11 @@ export default async function Shell({ children }: { children: React.ReactNode })
   const pendingExpenses = expenses.filter((e) => e.status === "pending_verification").length;
   const actor = session.user.name;
   const tenantName = session.tenant.name;
+
+  // Only the platform admin can move between companies — everyone else is
+  // pinned to their own and never sees the control.
+  const isSuperAdmin = session.user.role === "super_admin";
+  const tenants = isSuperAdmin ? await listTenants() : [];
   return (
     <div className="min-h-dvh flex bg-canvas">
       {/* Desktop sidebar — hidden on mobile */}
@@ -68,13 +75,19 @@ export default async function Shell({ children }: { children: React.ReactNode })
             />
           ))}
         </nav>
-        <div className="px-5 py-4 border-t border-line">
-          <div className="flex items-center gap-2 text-[11px]">
-            <span className={`h-1.5 w-1.5 rounded-full ${isDemoMode ? "bg-warn" : "bg-profit"}`} />
-            <span className="text-muted">{isDemoMode ? "Demo mode" : tenantName}</span>
+        <div className="px-3 py-4 border-t border-line">
+          {isSuperAdmin ? (
+            <TenantSwitcher tenants={tenants} currentId={session.tenant.id} />
+          ) : (
+            <div className="px-2 flex items-center gap-2 text-[11px]">
+              <span className={`h-1.5 w-1.5 rounded-full ${isDemoMode ? "bg-warn" : "bg-profit"}`} />
+              <span className="text-muted truncate">{isDemoMode ? "Demo mode" : tenantName}</span>
+            </div>
+          )}
+          <div className="px-2 text-[11px] text-faint mt-2">Signed in as {actor}</div>
+          <div className="px-2">
+            <LogoutButton />
           </div>
-          <div className="text-[11px] text-faint mt-1">Signed in as {actor}</div>
-          <LogoutButton />
         </div>
       </aside>
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuroraBackground } from "@/components/ui/aurora-background";
+import { BorderBeam } from "@/components/ui/border-beam";
 import { LilyMark } from "@/components/Logo";
 
 const GREETINGS = [
@@ -54,10 +55,16 @@ export default function LoginPage() {
 
   return (
     <AuroraBackground className="px-4">
-      <form onSubmit={submit} className="mx-auto flex w-full max-w-[340px] flex-col items-center text-center">
+      <form
+        onSubmit={submit}
+        className="relative mx-auto flex w-full max-w-[380px] flex-col items-center overflow-hidden rounded-2xl
+          border border-line bg-surface/80 px-7 py-9 text-center shadow-pop backdrop-blur-sm"
+      >
+        <BorderBeam size={180} duration={12} />
+
         <LilyMark size={44} />
 
-        <p className="mt-7 text-xl font-light tracking-wide text-ink/60">{GREETING}</p>
+        <p className="mt-6 text-xl font-light tracking-wide text-ink/60">{GREETING}</p>
 
         <label className="block w-full mt-8 text-left">
           <span className="block text-[11px] uppercase tracking-wide text-faint mb-1">Email</span>

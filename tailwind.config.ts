@@ -31,6 +31,15 @@ const config: Config = {
         pop: "0 4px 10px rgba(26,26,24,0.06), 0 24px 48px -14px rgba(26,26,24,0.18)",
       },
       borderRadius: { xl: "14px", "2xl": "18px" },
+      // Required by components/ui/border-beam.tsx (21st.dev / magicui).
+      keyframes: {
+        "border-beam": {
+          "100%": { "offset-distance": "100%" },
+        },
+      },
+      animation: {
+        "border-beam": "border-beam calc(var(--duration)*1s) infinite linear",
+      },
     },
   },
   plugins: [],

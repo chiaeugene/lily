@@ -209,6 +209,7 @@ export default async function AnalysisPage() {
                 <th className="font-normal py-2 text-right">Sales (RM)</th>
                 {cascade && <th className="font-normal py-2 text-right">Margin (RM)</th>}
                 <th className="font-normal py-2 text-right">Outstanding (RM)</th>
+                <th className="font-normal py-2 text-right">SOA</th>
               </tr>
             </thead>
             <tbody>
@@ -219,11 +220,20 @@ export default async function AnalysisPage() {
                   <td className="text-right tnum">{fmt2(c.sell)}</td>
                   {cascade && <td className="text-right tnum text-profit">{fmt2(c.margin)}</td>}
                   <td className={`text-right tnum ${c.outstanding > 0 ? "text-loss" : "text-faint"}`}>{fmt2(c.outstanding)}</td>
+                  <td className="text-right">
+                    <a
+                      href={`/api/soa?customer=${encodeURIComponent(name)}`}
+                      target="_blank"
+                      className="text-[12px] font-medium text-primary hover:underline"
+                    >
+                      Statement
+                    </a>
+                  </td>
                 </tr>
               ))}
               {byCustomer.size === 0 && (
                 <tr>
-                  <td colSpan={cascade ? 5 : 4} className="text-center text-slate-400 py-4">No data yet.</td>
+                  <td colSpan={cascade ? 6 : 5} className="text-center text-slate-400 py-4">No data yet.</td>
                 </tr>
               )}
             </tbody>

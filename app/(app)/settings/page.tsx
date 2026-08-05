@@ -4,11 +4,12 @@ import { getTenantCompanies } from "@/lib/tenantCompanies";
 import { listUsers } from "@/lib/tenant";
 import { getSession } from "@/lib/currentUser";
 import { listEmployees } from "@/lib/payroll";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, Card } from "@/components/ui";
 import SettingsClient from "@/components/SettingsClient";
 import CatalogClient from "@/components/CatalogClient";
 import UsersClient from "@/components/UsersClient";
 import EmployeesClient from "@/components/EmployeesClient";
+import { isMyinvoisConfigured, myinvoisEnvLabel } from "@/lib/myinvois";
 
 export default async function SettingsPage() {
   const session = await getSession();
@@ -39,6 +40,39 @@ export default async function SettingsPage() {
         <UsersClient users={users} currentUserId={session.user.id} />
         <EmployeesClient employees={employees} />
         <CatalogClient customers={customers} products={products} />
+
+        <Card title="MyInvois e-Invoice (LHDN)">
+          <div className="flex items-start gap-3">
+            <span
+              className={`mt-0.5 h-2.5 w-2.5 rounded-full shrink-0 ${isMyinvoisConfigured() ? "bg-profit" : "bg-warn"}`}
+              aria-hidden="true"
+            />
+            <div className="text-[13px] text-muted space-y-1.5">
+              {isMyinvoisConfigured() ? (
+                <>
+                  <p className="text-ink font-medium">Connected — {myinvoisEnvLabel()}</p>
+                  <p>
+                    Each invoice card on a transaction page has a <b>Submit e-Invoice</b> action. Validated
+                    invoices print with a genuine LHDN mark; unsubmitted invoices carry no e-Invoice marks.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-ink font-medium">Not connected</p>
+                  <p>
+                    To enable: register an ERP/intermediary on the LHDN MyTax portal, then set{" "}
+                    <code className="bg-canvas px-1 rounded">MYINVOIS_CLIENT_ID</code> and{" "}
+                    <code className="bg-canvas px-1 rounded">MYINVOIS_CLIENT_SECRET</code> on the server
+                    (plus <code className="bg-canvas px-1 rounded">MYINVOIS_ENV=production</code> when going live —
+                    the default is the LHDN sandbox).
+                  </p>
+                  <p>Until then, invoices print without any LHDN marks — no placeholder validation badges.</p>
+                </>
+              )}
+            </div>
+          </div>
+        </Card>
+
         <SettingsClient companies={companies} products={products} rules={rules} />
       </div>
     </>

@@ -84,6 +84,10 @@ function rowToInvoice(r: any): Invoice {
     roundingAdj: Number(r.rounding_adj),
     finalTotal: Number(r.final_total),
     amountInWords: r.amount_in_words,
+    myinvoisStatus: r.myinvois_status ?? undefined,
+    myinvoisUid: r.myinvois_uid ?? undefined,
+    myinvoisLongId: r.myinvois_long_id ?? undefined,
+    myinvoisSubmittedAt: r.myinvois_submitted_at ?? undefined,
   };
 }
 
@@ -869,6 +873,37 @@ export const repo = {
       .update({ paid_status: paid ? "paid" : "unpaid", paid_at: paidAt })
       .eq("id", id);
     await dbLog(actor, paid ? "transaction.paid" : "transaction.unpaid", id);
+  },
+
+  // ── MyInvois (LHDN e-Invoice) state ────────────────────────────────────────
+  async setInvoiceMyinvois(
+    invoiceId: string,
+    fields: { status: "submitted" | "valid" | "invalid"; uid?: string; longId?: string },
+    actor = "admin",
+  ): Promise<void> {
+    if (isDemoMode) {
+      for (const t of store.transactions) {
+        const inv = t.invoices.find((i) => i.id === invoiceId);
+        if (inv) {
+          inv.myinvoisStatus = fields.status;
+          inv.myinvoisUid = fields.uid ?? inv.myinvoisUid;
+          inv.myinvoisLongId = fields.longId ?? inv.myinvoisLongId;
+          inv.myinvoisSubmittedAt = new Date().toISOString();
+        }
+      }
+      memLog(actor, "myinvois.submit", `${invoiceId} -> ${fields.status}`);
+      return;
+    }
+    await (await scopedDb())
+      .from("invoices")
+      .update({
+        myinvois_status: fields.status,
+        myinvois_uid: fields.uid ?? null,
+        myinvois_long_id: fields.longId ?? null,
+        myinvois_submitted_at: new Date().toISOString(),
+      })
+      .eq("id", invoiceId);
+    await dbLog(actor, "myinvois.submit", `${invoiceId} -> ${fields.status}`);
   },
 
   // Best-effort: silently teach the customer/product catalog from a just-verified

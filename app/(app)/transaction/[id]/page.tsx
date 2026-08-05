@@ -6,6 +6,8 @@ import { IconDownload } from "@/components/icons";
 import VoidButton from "@/components/VoidButton";
 import MarkPaidButton from "@/components/MarkPaidButton";
 import ReminderButton from "@/components/ReminderButton";
+import MyinvoisSubmit from "@/components/MyinvoisSubmit";
+import { isMyinvoisConfigured } from "@/lib/myinvois";
 import { fmt2 } from "@/lib/money";
 import { dueDate, paymentState, daysOverdue } from "@/lib/payment";
 import { COMPANY_LABELS } from "@/lib/companies";
@@ -17,6 +19,7 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
   if (!tx) notFound();
 
   const voided = tx.status === "void";
+  const myinvoisOn = isMyinvoisConfigured();
   const due = dueDate(tx);
   const custInvoice = tx.invoices.find((i) => i.toName === tx.customerName) ?? tx.invoices[tx.invoices.length - 1];
   const unpaid = !voided && paymentState(tx) !== "paid";
@@ -104,7 +107,7 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
                 className="w-full h-[520px] bg-white"
                 title={inv.invoiceNo}
               />
-              <div className="flex gap-2 px-4 py-3 border-t border-line text-sm">
+              <div className="flex items-center gap-2 px-4 py-3 border-t border-line text-sm">
                 <Link href={`/api/invoice/${inv.id}`} target="_blank" className="text-brand hover:underline">
                   View / Print
                 </Link>
@@ -112,6 +115,11 @@ export default async function TransactionPage({ params }: { params: Promise<{ id
                 <Link href={`/api/invoice/${inv.id}/pdf`} target="_blank" className="text-brand hover:underline">
                   Save PDF
                 </Link>
+                {myinvoisOn && !voided && (
+                  <span className="ml-auto">
+                    <MyinvoisSubmit invoiceId={inv.id} status={inv.myinvoisStatus} />
+                  </span>
+                )}
               </div>
             </div>
           ))}

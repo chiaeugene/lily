@@ -57,14 +57,25 @@ export function invoiceHtml(
   const showQr = c.showQr && !opts.hideQr && !!c.paymentQrDataUrl;
   const showSignature = c.showAuthorisedSignature || !!opts.forceSignature;
 
+  // LHDN marks appear only when the invoice truly has a MyInvois state — a fake
+  // "Validated" badge on an unsubmitted tax document is a compliance own-goal.
+  const lhdnMark =
+    inv.myinvoisStatus === "valid"
+      ? `<div class="lhdn">LHDN e-Invoice VALIDATED${
+          inv.myinvoisLongId ? `<br/><span class="lhdn-id">${esc(inv.myinvoisLongId.slice(0, 24))}</span>` : ""
+        }</div>`
+      : inv.myinvoisStatus === "submitted"
+        ? `<div class="lhdn">LHDN e-Invoice Submitted${
+            inv.myinvoisUid ? `<br/><span class="lhdn-id">${esc(inv.myinvoisUid.slice(0, 24))}</span>` : ""
+          }</div>`
+        : "";
+
   const header = `
     <div class="hdr">
       ${c.showLogo ? `<div class="logo">${esc(c.logoText ?? "")}</div>` : ""}
       ${
-        (showQr && !c.qrInFooter) || c.showLhdnLink
-          ? `<div class="hdr-right">${showQr && !c.qrInFooter ? paymentQr(c.paymentQrDataUrl) : ""}${
-              c.showLhdnLink ? `<div class="lhdn">LHDN Validated<br/>Link</div>` : ""
-            }</div>`
+        (showQr && !c.qrInFooter) || lhdnMark
+          ? `<div class="hdr-right">${showQr && !c.qrInFooter ? paymentQr(c.paymentQrDataUrl) : ""}${lhdnMark}</div>`
           : ""
       }
       <div class="co-name">${esc(c.name)}</div>
@@ -137,6 +148,7 @@ export function invoiceHtml(
   .hdr-right { position:absolute; right:0; top:0; text-align:center; }
   .hdr-right svg { fill:#000; }
   .lhdn { font-size:7px; color:#0a58ca; }
+  .lhdn-id { font-size:6px; color:#555; }
   .co-name { font-family:"Times New Roman",Georgia,serif; font-weight:bold; font-size:20px; letter-spacing:.5px; }
   .co-meta { font-family:"Times New Roman",Georgia,serif; font-size:10px; line-height:1.35; }
   .italic { font-style:italic; }

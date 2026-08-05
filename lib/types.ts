@@ -133,6 +133,11 @@ export interface Invoice {
   roundingAdj: number;
   finalTotal: number;
   amountInWords: string;
+  // MyInvois (LHDN e-Invoice) submission state
+  myinvoisStatus?: "submitted" | "valid" | "invalid";
+  myinvoisUid?: string;
+  myinvoisLongId?: string;
+  myinvoisSubmittedAt?: string;
 }
 
 export type TransactionStatus = "active" | "void";
